@@ -309,37 +309,37 @@ public class DBApp {
         Serialize(tablePath,table);
     }
 
-    public Iterator selectFromTable(SQLTerm[] arrSQLTerms, String[] strarrOperators) throws DBAppException
-    {
-        if (arrSQLTerms.length - strarrOperators.length != 1) throw new DBAppException("Invalid arrSQLTerms and strarrOperators");
+//    public Iterator selectFromTable(SQLTerm[] arrSQLTerms, String[] strarrOperators) throws DBAppException
+//    {
+//        if (arrSQLTerms.length - strarrOperators.length != 1) throw new DBAppException("Invalid arrSQLTerms and strarrOperators");
+//
+//        //to check on the given operators AND,OR,XOR
+//        validateStrarrOperators(strarrOperators);
+//        validateArrSQLTerms(arrSQLTerms);
+//        return null;
+//    }
 
-        //to check on the given operators AND,OR,XOR
-        validateStrarrOperators(strarrOperators);
-        validateArrSQLTerms(arrSQLTerms);
-        return null;
-    }
-
-    public void validateArrSQLTerms(SQLTerm[] arrSQLTerms) throws DBAppException {
-        String tableName = arrSQLTerms[0].get_strTableName();
-
-        for (int i = 1; i < arrSQLTerms.length; i++)
-        {
-            if (!(arrSQLTerms[1].get_strTableName()).equals(tableName))
-            {
-                throw new DBAppException("Different table names are passed ");
-            }
-        }
-    }
-
-    public void validateStrarrOperators(String[] strarrOperators) throws DBAppException {
-        for (String str : strarrOperators)
-        {
-            if (!str.equals("OR") && !str.equals("AND") && !str.equals("XOR"))
-            {
-                throw new DBAppException("strarrOperators contains invalid operators");
-            }
-        }
-    }
+//    public void validateArrSQLTerms(SQLTerm[] arrSQLTerms) throws DBAppException {
+//        String tableName = arrSQLTerms[0].get_strTableName();
+//
+//        for (int i = 1; i < arrSQLTerms.length; i++)
+//        {
+//            if (!(arrSQLTerms[1].get_strTableName()).equals(tableName))
+//            {
+//                throw new DBAppException("Different table names are passed ");
+//            }
+//        }
+//    }
+//
+//    public void validateStrarrOperators(String[] strarrOperators) throws DBAppException {
+//        for (String str : strarrOperators)
+//        {
+//            if (!str.equals("OR") && !str.equals("AND") && !str.equals("XOR"))
+//            {
+//                throw new DBAppException("strarrOperators contains invalid operators");
+//            }
+//        }
+//    }
 
     public Vector<Hashtable<String,Object>> deleteRecordsFromPage (Vector<Hashtable<String,Object>> records,Hashtable<String,Object> htblColNameValue)
     {
