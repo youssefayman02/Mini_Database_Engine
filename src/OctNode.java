@@ -102,8 +102,12 @@ public class OctNode implements Serializable{
         isLeaf = leaf;
     }
 
-    public void insert(OctPoint Point)
+    public void insert(OctPoint Point, boolean checkExistence)
     {
+        if (checkExistence)
+        {
+            if (find(Point)) return;
+        }
 
         if (this.isLeaf())
         {
@@ -137,7 +141,7 @@ public class OctNode implements Serializable{
                 for (OctPoint p : distributedData)
                 {
                     int childIndex = childIndex(p, children);
-                    this.children[childIndex].insert(p);
+                    this.children[childIndex].insert(p,false);
                 }
                 this.setStoredData(new Vector<>());
             }
@@ -152,13 +156,18 @@ public class OctNode implements Serializable{
 
                 if (withinTheRange(Point,minX,maxX,minY,maxY,minZ,maxZ))
                 {
-                    children[i].insert(Point);
+                    children[i].insert(Point, false);
                     return;
                 }
 
             }
 
         }
+    }
+
+    public boolean find(OctPoint p)
+    {
+        return false;
     }
 
     public void printTree()
