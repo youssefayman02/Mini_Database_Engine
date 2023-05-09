@@ -4,8 +4,8 @@ import java.text.*;
 import java.util.*;
 
 public class DBApp {
-    private  int MaximumRowsCountinTablePage;
-    private  int MaximumEntriesinOctreeNode;
+    static int MaximumRowsCountinTablePage;
+    static int MaximumEntriesinOctreeNode = 2;
 
     public void init()
     {
