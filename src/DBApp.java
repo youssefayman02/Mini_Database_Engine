@@ -5,7 +5,7 @@ import java.util.*;
 
 public class DBApp {
     static int MaximumRowsCountinTablePage;
-    static int MaximumEntriesinOctreeNode = 2;
+    static int MaximumEntriesinOctreeNode = 4;
 
     public void init()
     {

@@ -17,10 +17,12 @@ public class OctNode implements Serializable{
     //max z
     private Object z2;
     private Vector<OctPoint> storedData = new Vector<>();
+    private Vector<OctPoint> duplicates = new Vector<>();
     private OctNode[] children = new OctNode[8];
     private boolean isLeaf;
+    private OctNode parent;
 
-    public OctNode (Object x1, Object x2, Object y1, Object y2, Object z1, Object z2, boolean isLeaf)
+    public OctNode (Object x1, Object x2, Object y1, Object y2, Object z1, Object z2, boolean isLeaf,OctNode parent)
     {
         this.x1 = x1;
         this.x2 = x2;
@@ -29,6 +31,7 @@ public class OctNode implements Serializable{
         this.z1 = z1;
         this.z2 = z2;
         this.isLeaf = isLeaf;
+        this.parent = parent;
     }
 
     public Object getX1() {
@@ -87,6 +90,14 @@ public class OctNode implements Serializable{
         this.storedData = storedData;
     }
 
+    public Vector<OctPoint> getDuplicates() {
+        return duplicates;
+    }
+
+    public void setDuplicates(Vector<OctPoint> duplicates) {
+        this.duplicates = duplicates;
+    }
+
     public OctNode[] getChildren() {
         return children;
     }
@@ -107,6 +118,16 @@ public class OctNode implements Serializable{
     {
         if (this.isLeaf())
         {
+            if (containsPointAndReference(point, this.storedData)) return;
+
+            if (containsPointAndReference(point, this.duplicates)) return;
+
+            if (containsPoint(point, this.storedData) && !containsPointAndReference(point, this.duplicates))
+            {
+                Vector<OctPoint> updatedDuplicates = this.getDuplicates();
+                updatedDuplicates.add(point);
+                return;
+            }
             if (this.isContainsNull(point) || this.getStoredData().size() < DBApp.MaximumEntriesinOctreeNode)
             {
                 Vector<OctPoint> updatedData = this.getStoredData();
@@ -114,37 +135,45 @@ public class OctNode implements Serializable{
                 return;
             }
             // create the children, distribute the data, set the root to non leaf
-            else
+            this.setLeaf(false);
+            Object xMid = getMedian(this.getX1(), this.getX2());
+            Object yMid = getMedian(this.getY1(), this.getY2());
+            Object zMid = getMedian(this.getZ1(), this.getZ2());
+            // create the children of the node
+            OctNode[] children = this.getChildren();
+            children[0] = new OctNode(this.getX1(), xMid, this.getY1(), yMid, this.getZ1(), zMid,true,this);
+            children[1] = new OctNode(this.getX1(), xMid, this.getY1(), yMid, zMid, this.getZ2(),true,this);
+            children[2] = new OctNode(this.getX1(), xMid, yMid, this.getY2(), this.getZ1(), zMid,true, this);
+            children[3] = new OctNode(this.getX1(), xMid, yMid, this.getY2(), zMid, this.getZ2(),true,this);
+            children[4] = new OctNode(xMid, this.getX2(), this.getY1(), yMid, this.getZ1(), zMid,true, this);
+            children[5] = new OctNode(xMid, this.getX2(), this.getY1(), yMid, zMid, this.getZ2(),true, this);
+            children[6] = new OctNode(xMid, this.getX2(), yMid, this.getY2(), this.getZ1(), zMid,true, this);
+            children[7] = new OctNode(xMid, this.getX2(), yMid, this.getY2(), zMid, this.getZ2(),true, this);
+            //distribute the octPoints in that node
+            this.setChildren(children);
+            Vector<OctPoint> distributedData = this.getStoredData();
+            distributedData.add(point);
+            for (OctPoint p : distributedData)
             {
-                this.setLeaf(false);
-                Object xMid = getMedian(this.getX1(), this.getX2());
-                Object yMid = getMedian(this.getY1(), this.getY2());
-                Object zMid = getMedian(this.getZ1(), this.getZ2());
-                // create the children of the node
-                OctNode[] children = this.getChildren();
-                children[0] = new OctNode(this.getX1(), xMid, this.getY1(), yMid, this.getZ1(), zMid,true);
-                children[1] = new OctNode(this.getX1(), xMid, this.getY1(), yMid, zMid, this.getZ2(),true);
-                children[2] = new OctNode(this.getX1(), xMid, yMid, this.getY2(), this.getZ1(), zMid,true);
-                children[3] = new OctNode(this.getX1(), xMid, yMid, this.getY2(), zMid, this.getZ2(),true);
-                children[4] = new OctNode(xMid, this.getX2(), this.getY1(), yMid, this.getZ1(), zMid,true);
-                children[5] = new OctNode(xMid, this.getX2(), this.getY1(), yMid, zMid, this.getZ2(),true);
-                children[6] = new OctNode(xMid, this.getX2(), yMid, this.getY2(), this.getZ1(), zMid,true);
-                children[7] = new OctNode(xMid, this.getX2(), yMid, this.getY2(), zMid, this.getZ2(),true);
-                //distribute the octPoints in that node
-                this.setChildren(children);
-                Vector<OctPoint> distributedData = this.getStoredData();
-                distributedData.add(point);
-                for (OctPoint p : distributedData)
-                {
-                    if (isContainsNull(p)) this.children[0].insert(p);
-                    else {
-                        int childIndex = childIndex(p, children);
-                        this.children[childIndex].insert(p);
-                    }
+                if (isContainsNull(p)) this.children[0].insert(p);
+                else {
+                    int childIndex = childIndex(p, children);
+                    this.children[childIndex].insert(p);
                 }
-                this.setStoredData(new Vector<>());
             }
+            Vector<OctPoint> distributedDuplicates = this.getDuplicates();
+            for (OctPoint p : distributedDuplicates)
+            {
+                if (isContainsNull(p)) this.children[0].insert(p);
+                else {
+                    int childIndex = childIndex(p, children);
+                    this.children[childIndex].insert(p);
+                }
+            }
+            this.setStoredData(new Vector<>());
+            this.setDuplicates(new Vector<>());
         }
+
         else
         {
             OctNode[] children = this.getChildren();
@@ -173,22 +202,24 @@ public class OctNode implements Serializable{
     {
         if (isLeaf)
         {
-            Vector<OctPoint> storedData = this.getStoredData();
-            for (int i = 0; i < storedData.size(); i++)
+            this.storedData = deletePoints(point,this.storedData);
+            this.duplicates = deletePoints(point,this.duplicates);
+
+            if (this.parent != null)
             {
-                OctPoint target = storedData.get(i);
-                if (isEqual(point, target))
+                /* check if the stored points in the children is below max
+                   if true remove a level from the tree
+                 */
+                if (checkStoredPointsBelowMax(this.parent.getChildren()) && checkAllChildrenAreLeaves(this.parent.getChildren()))
                 {
-                    storedData.remove(i);
-                    i--;
+                    this.parent.storedData = (Vector<OctPoint>) moveDataFromChildren(this.parent.children)[0];
+                    this.parent.duplicates = (Vector<OctPoint>) moveDataFromChildren(this.parent.children)[1];
+                    this.parent.children = new OctNode[8];
+                    this.parent.isLeaf = true;
                 }
             }
+
             return;
-//            int indexToDelete = indexToDeleteFromStoredData(point, storedData);
-//            if (indexToDelete > -1)
-//            {
-//                storedData.remove(indexToDelete);
-//            }
         }
         OctNode[] children = this.getChildren();
         for (int i = 0; i < children.length; i++) {
@@ -212,6 +243,77 @@ public class OctNode implements Serializable{
     {
         insert(point);
         delete(point);
+    }
+    public boolean checkAllChildrenAreLeaves (OctNode[] children)
+    {
+        for (OctNode node : children)
+        {
+            if (!node.isLeaf) return false;
+        }
+        return true;
+    }
+    public Object[] moveDataFromChildren (OctNode[] children)
+    {
+        Vector<OctPoint> movedData = new Vector<>();
+        Vector<OctPoint> movedDuplicates = new Vector<>();
+        for (OctNode node: children)
+        {
+            movedData.addAll(node.storedData);
+            movedDuplicates.addAll(duplicates);
+        }
+        Object[] res = new Object[2];
+        res[0] = movedData;
+        res[1] = movedDuplicates;
+        return res;
+    }
+    public boolean checkStoredPointsBelowMax(OctNode[] children)
+    {
+        int storedPoints = 0;
+        for (OctNode node : children)
+        {
+            for (OctPoint point : node.storedData)
+            {
+                if (isContainsNull(point)) continue;
+                storedPoints++;
+            }
+        }
+
+        return storedPoints < DBApp.MaximumEntriesinOctreeNode;
+    }
+    public Vector<OctPoint> deletePoints(OctPoint point, Vector<OctPoint> storedData)
+    {
+        for (int i = 0; i < storedData.size(); i++)
+        {
+            OctPoint target = storedData.get(i);
+            if (isEqual(point, target))
+            {
+                storedData.remove(i);
+                i--;
+            }
+        }
+        return storedData;
+    }
+    public boolean containsPointAndReference(OctPoint point, Vector<OctPoint> storedData)
+    {
+        for (OctPoint target: storedData)
+        {
+            if (isEqual(point,target) && point.getReference().equals(target.getReference()))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+    public boolean containsPoint(OctPoint point, Vector<OctPoint> storedData)
+    {
+        for (OctPoint target: storedData)
+        {
+            if (isEqual(point,target))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     public boolean find(OctPoint Point)
@@ -245,7 +347,8 @@ public class OctNode implements Serializable{
         if (this.isLeaf)
         {
             System.out.println("Leaf/ Coordinates: minX: "+ this.getX1()+" maxX: "+this.getX2()+" minY: "+this.getY1()+" maxY: "+this.getY2()+" minZ: "+this.getZ1()+" maxZ: "+ this.getZ2());
-            System.out.println("Stored Data:" + this.storedData.toString());
+            System.out.println("Stored Data: " + this.storedData.toString());
+            System.out.println("Duplicates: " + this.duplicates.toString());
             return;
         }
         else
@@ -260,15 +363,6 @@ public class OctNode implements Serializable{
         }
     }
 
-    public int indexToDeleteFromStoredData(OctPoint point, Vector<OctPoint> storedData)
-    {
-        for (int i = 0; i < storedData.size(); i++)
-        {
-            if (isEqual(point,storedData.get(i))) return i;
-        }
-
-        return -1;
-    }
     public int childIndex (OctPoint Point, OctNode[] children)
     {
         for (int i = 0; i < children.length; i++)
@@ -375,10 +469,6 @@ public class OctNode implements Serializable{
     }
 
     public static void main(String[] args) {
-        OctNode n1 = new OctNode(1,100,1.0,100.0,"aaaaa","zzzzz", true);
-        OctPoint p1 = new OctPoint(12,new Double(80.0),new DBAppNull(),5,"reference");
-        OctPoint p2 = new OctPoint(12,new Double(80.0),new DBAppNull(),5,"reference");
-        System.out.println(n1.isEqual(p1,p2));
 
     }
 }
