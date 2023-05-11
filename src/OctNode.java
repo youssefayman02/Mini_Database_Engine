@@ -1,3 +1,4 @@
+import java.awt.*;
 import java.io.Serializable;
 import java.util.Date;
 import java.util.Vector;
@@ -102,19 +103,14 @@ public class OctNode implements Serializable{
         isLeaf = leaf;
     }
 
-    public void insert(OctPoint Point, boolean checkExistence)
+    public void insert (OctPoint point)
     {
-        if (checkExistence)
-        {
-            if (find(Point)) return;
-        }
-
         if (this.isLeaf())
         {
-            if (this.getStoredData().size() < DBApp.MaximumEntriesinOctreeNode)
+            if (this.isContainsNull(point) || this.getStoredData().size() < DBApp.MaximumEntriesinOctreeNode)
             {
                 Vector<OctPoint> updatedData = this.getStoredData();
-                updatedData.add(Point);
+                updatedData.add(point);
                 return;
             }
             // create the children, distribute the data, set the root to non leaf
@@ -127,21 +123,24 @@ public class OctNode implements Serializable{
                 // create the children of the node
                 OctNode[] children = this.getChildren();
                 children[0] = new OctNode(this.getX1(), xMid, this.getY1(), yMid, this.getZ1(), zMid,true);
-                children[1] = new OctNode(this.getX1(), xMid, this.getY1(), yMid, zMid, this.getZ2(), true);
-                children[2] = new OctNode(this.getX1(), xMid, yMid, this.getY2(), this.getZ1(), zMid, true);
-                children[3] = new OctNode(this.getX1(), xMid, yMid, this.getY2(), zMid, this.getZ2(), true);
-                children[4] = new OctNode(xMid, this.getX2(), this.getY1(), yMid, this.getZ1(), zMid, true);
-                children[5] = new OctNode(xMid, this.getX2(), this.getY1(), yMid, zMid, this.getZ2(), true);
-                children[6] = new OctNode(xMid, this.getX2(), yMid, this.getY2(), this.getZ1(), zMid, true);
-                children[7] = new OctNode(xMid, this.getX2(), yMid, this.getY2(), zMid, this.getZ2(), true);
+                children[1] = new OctNode(this.getX1(), xMid, this.getY1(), yMid, zMid, this.getZ2(),true);
+                children[2] = new OctNode(this.getX1(), xMid, yMid, this.getY2(), this.getZ1(), zMid,true);
+                children[3] = new OctNode(this.getX1(), xMid, yMid, this.getY2(), zMid, this.getZ2(),true);
+                children[4] = new OctNode(xMid, this.getX2(), this.getY1(), yMid, this.getZ1(), zMid,true);
+                children[5] = new OctNode(xMid, this.getX2(), this.getY1(), yMid, zMid, this.getZ2(),true);
+                children[6] = new OctNode(xMid, this.getX2(), yMid, this.getY2(), this.getZ1(), zMid,true);
+                children[7] = new OctNode(xMid, this.getX2(), yMid, this.getY2(), zMid, this.getZ2(),true);
                 //distribute the octPoints in that node
                 this.setChildren(children);
                 Vector<OctPoint> distributedData = this.getStoredData();
-                distributedData.add(Point);
+                distributedData.add(point);
                 for (OctPoint p : distributedData)
                 {
-                    int childIndex = childIndex(p, children);
-                    this.children[childIndex].insert(p,false);
+                    if (isContainsNull(p)) this.children[0].insert(p);
+                    else {
+                        int childIndex = childIndex(p, children);
+                        this.children[childIndex].insert(p);
+                    }
                 }
                 this.setStoredData(new Vector<>());
             }
@@ -154,9 +153,14 @@ public class OctNode implements Serializable{
                 Object minX = children[i].getX1(), minY = children[i].getY1(), minZ = children[i].getZ1();
                 Object maxX = children[i].getX2(), maxY = children[i].getY2(), maxZ = children[i].getZ2();
 
-                if (withinTheRange(Point,minX,maxX,minY,maxY,minZ,maxZ))
+                if (isContainsNull(point))
                 {
-                    children[i].insert(Point, false);
+                    children[0].insert(point);
+                    return;
+                }
+                else if (withinTheRange(point,minX,maxX,minY,maxY,minZ,maxZ))
+                {
+                    children[i].insert(point);
                     return;
                 }
 
@@ -165,10 +169,76 @@ public class OctNode implements Serializable{
         }
     }
 
-    public boolean find(OctPoint p)
+    public void delete (OctPoint point)
     {
+        if (isLeaf)
+        {
+            Vector<OctPoint> storedData = this.getStoredData();
+            for (int i = 0; i < storedData.size(); i++)
+            {
+                OctPoint target = storedData.get(i);
+                if (isEqual(point, target))
+                {
+                    storedData.remove(i);
+                    i--;
+                }
+            }
+            return;
+//            int indexToDelete = indexToDeleteFromStoredData(point, storedData);
+//            if (indexToDelete > -1)
+//            {
+//                storedData.remove(indexToDelete);
+//            }
+        }
+        OctNode[] children = this.getChildren();
+        for (int i = 0; i < children.length; i++) {
+            Object minX = children[i].getX1(), minY = children[i].getY1(), minZ = children[i].getZ1();
+            Object maxX = children[i].getX2(), maxY = children[i].getY2(), maxZ = children[i].getZ2();
+
+            if (isContainsNull(point))
+            {
+                children[0].delete(point);
+                return;
+            }
+            else if (withinTheRange(point, minX, maxX, minY, maxY, minZ, maxZ)) {
+                children[i].delete(point);
+                return;
+            }
+        }
+
+    }
+
+    public void update (OctPoint point)
+    {
+        insert(point);
+        delete(point);
+    }
+
+    public boolean find(OctPoint Point)
+    {
+        if (isLeaf)
+        {
+            Vector<OctPoint> storedData = this.getStoredData();
+            for (OctPoint target: storedData)
+            {
+                if (compare(target.getX(),(Point.getX())) == 0) return true;
+            }
+            return false;
+        }
+        OctNode[] children = this.children;
+        for (OctNode node : children)
+        {
+            Object minX = node.getX1(), minY = node.getY1(), minZ = node.getZ1();
+            Object maxX = node.getX2(), maxY = node.getY2(), maxZ = node.getZ2();
+            if (withinTheRange(Point,minX,maxX,minY,maxY,minZ,maxZ))
+            {
+                node.find(Point);
+            }
+
+        }
         return false;
     }
+
 
     public void printTree()
     {
@@ -180,11 +250,24 @@ public class OctNode implements Serializable{
         }
         else
         {
+            System.out.println("Parent "+this.toString());
+            System.out.println("---------------------------------------------------");
             for (int i = 0; i < this.children.length; i++)
             {
                 children[i].printTree();
             }
+            System.out.println("---------------------------------------------------");
         }
+    }
+
+    public int indexToDeleteFromStoredData(OctPoint point, Vector<OctPoint> storedData)
+    {
+        for (int i = 0; i < storedData.size(); i++)
+        {
+            if (isEqual(point,storedData.get(i))) return i;
+        }
+
+        return -1;
     }
     public int childIndex (OctPoint Point, OctNode[] children)
     {
@@ -266,15 +349,36 @@ public class OctNode implements Serializable{
 
     public int compare (Object o1,Object o2)
     {
-        if (o1 instanceof java.lang.Integer) return ((Integer)o1).compareTo((Integer)o2);
-        else if (o1 instanceof java.lang.Double) return ((Double)o1).compareTo((Double)o2);
-        else if (o1 instanceof java.lang.String) return ((String)o1).compareTo((String)o2);
-        else if (o1 instanceof Null) return ((Null)o1).compareTo((Null)o2);
-        else return ((Date)o1).compareTo((Date)o2);
+        if (o1 instanceof DBAppNull && o2 instanceof DBAppNull) return 0;
+        else if (o1 instanceof java.lang.Integer && o2 instanceof java.lang.Integer) return ((Integer)o1).compareTo((Integer)o2);
+        else if (o1 instanceof java.lang.Double && o2 instanceof java.lang.Double) return ((Double)o1).compareTo((Double)o2);
+        else if (o1 instanceof java.lang.String && o2 instanceof java.lang.String) return ((String)o1).compareTo((String)o2);
+        else if (o1 instanceof java.util.Date && o2 instanceof java.util.Date) ((Date)o1).compareTo((Date)o2);
+        return -1;
+    }
 
+    public boolean isEqual(OctPoint p1, OctPoint p2)
+    {
+        return (compare(p1.getX(),p2.getX()) == 0)
+                && (compare(p1.getY(),p2.getY()) == 0)
+                && (compare(p1.getZ(),(p2.getZ())) == 0);
+    }
+
+    public boolean isContainsNull(OctPoint p)
+    {
+        return (p.getX() instanceof DBAppNull) || (p.getY() instanceof DBAppNull) || (p.getZ() instanceof DBAppNull);
+    }
+
+    @Override
+    public String toString() {
+        return "Parent maxX: "+this.x1+" minX: "+this.x2+" maxY: "+this.y1+" minY: "+this.y2+" maxZ: "+this.z1+" minZ: "+this.z2+" children: "+this.storedData.toString();
     }
 
     public static void main(String[] args) {
+        OctNode n1 = new OctNode(1,100,1.0,100.0,"aaaaa","zzzzz", true);
+        OctPoint p1 = new OctPoint(12,new Double(80.0),new DBAppNull(),5,"reference");
+        OctPoint p2 = new OctPoint(12,new Double(80.0),new DBAppNull(),5,"reference");
+        System.out.println(n1.isEqual(p1,p2));
 
     }
 }

@@ -1,6 +1,6 @@
 import java.io.Serializable;
 
-public class Null implements Serializable, Comparable {
+public class DBAppNull implements Serializable, Comparable {
 
     @Override
     public String toString() {
@@ -12,4 +12,3 @@ public class Null implements Serializable, Comparable {
         return 0;
     }
 }
-

@@ -50,7 +50,7 @@ public class DBApp {
         //Create table and initializing its attributes then serializing it
         Vector<Page> pages = new Vector<>();
         Vector<Integer> pagesID = new Vector<>();
-        Table table = new Table(strTableName,pages,pagesID,0);
+        Table table = new Table(strTableName,pages,pagesID,0,0);
         String tablePath = "src/main/resources/data/Tables/"+strTableName+"/"+strTableName+".ser";
         Serialize(tablePath,table);
 
@@ -71,6 +71,29 @@ public class DBApp {
         }
     }
 
+    public void createIndex(String strTableName, String[] strarrColName) throws DBAppException
+    {
+        File tableDirectory = new File("src/main/resources/data/Tables/"+strTableName);
+        if (!tableDirectory.exists()) throw new DBAppException("Table does not exist");
+
+        String primaryKey = (String) readFromCSV(strTableName)[0];
+        String clusteringType = (String) readFromCSV(strTableName)[1];
+        Hashtable<String, String> dataTypes = (Hashtable) readFromCSV(strTableName)[2];
+        Hashtable<String, Object> minValues = (Hashtable) readFromCSV(strTableName)[3];
+        Hashtable<String, Object> maxValues = (Hashtable) readFromCSV(strTableName)[4];
+
+        if (strarrColName.length != 3) throw new DBAppException("Can not build index on the given columns");
+        for (String col : strarrColName)
+        {
+            if (!dataTypes.containsKey(col)) throw new DBAppException("Column does not exist");
+        }
+
+
+
+
+
+    }
+
     public void insertIntoTable(String strTableName, Hashtable<String,Object> htblColNameValue) throws DBAppException
     {
         if (htblColNameValue.isEmpty()) throw new DBAppException("Clustering key value cannot be null");
@@ -89,7 +112,7 @@ public class DBApp {
         // memic the null values
         for (String key : dataTypes.keySet()) {
             if (!htblColNameValue.containsKey(key)) {
-                htblColNameValue.put(key, new Null());
+                htblColNameValue.put(key, new DBAppNull());
             }
         }
 
@@ -349,8 +372,8 @@ public class DBApp {
             boolean delete = true;
             for (String key : htblColNameValue.keySet())
             {
-                if ( ((htblColNameValue.get(key) instanceof Null) && !(targetRecord.get(key) instanceof Null))
-                        || (!(htblColNameValue.get(key) instanceof Null) && (targetRecord.get(key) instanceof Null))
+                if ( ((htblColNameValue.get(key) instanceof DBAppNull) && !(targetRecord.get(key) instanceof DBAppNull))
+                        || (!(htblColNameValue.get(key) instanceof DBAppNull) && (targetRecord.get(key) instanceof DBAppNull))
                         || compare(htblColNameValue.get(key),targetRecord.get(key)) != 0)
                 {
                     delete = false;
@@ -437,7 +460,7 @@ public class DBApp {
         if (o1 instanceof java.lang.Integer) return ((Integer)o1).compareTo((Integer)o2);
         else if (o1 instanceof java.lang.Double) return ((Double)o1).compareTo((Double)o2);
         else if (o1 instanceof java.lang.String) return ((String)o1).compareTo((String)o2);
-        else if (o1 instanceof Null) return ((Null)o1).compareTo((Null)o2);
+        else if (o1 instanceof DBAppNull) return ((DBAppNull)o1).compareTo((DBAppNull)o2);
         else return ((Date)o1).compareTo((Date)o2);
 
     }
@@ -518,7 +541,7 @@ public class DBApp {
 
         for (String key : htblColNameValue.keySet())
         {
-            if (htblColNameValue.get(key) instanceof Null) continue;
+            if (htblColNameValue.get(key) instanceof DBAppNull) continue;
 
             if (!dataTypes.containsKey(key)) throw new DBAppException("Column does not exist");
         }
@@ -528,7 +551,7 @@ public class DBApp {
 
         for (String key : htblColNameValue.keySet())
         {
-            if (htblColNameValue.get(key) instanceof Null) continue;
+            if (htblColNameValue.get(key) instanceof DBAppNull) continue;
             Class col;
             try {
                 col = Class.forName(dataTypes.get(key));
@@ -544,7 +567,7 @@ public class DBApp {
 
         for (String key : htblColNameValue.keySet())
         {
-            if (htblColNameValue.get(key) instanceof Null) continue;
+            if (htblColNameValue.get(key) instanceof DBAppNull) continue;
 
             switch (dataTypes.get(key))
             {
@@ -597,7 +620,7 @@ public class DBApp {
     {
         for (Object obj : htblColNameValue.values())
         {
-            if (obj instanceof Null) return true;
+            if (obj instanceof DBAppNull) return true;
         }
 
         return false;
