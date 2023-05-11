@@ -469,6 +469,6 @@ public class OctNode implements Serializable{
     }
 
     public static void main(String[] args) {
-
+        Vector<OctPoint> v = new Vector<>();
     }
 }
