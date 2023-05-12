@@ -1,6 +1,7 @@
 import java.awt.*;
 import java.io.Serializable;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.Vector;
 
 public class OctNode implements Serializable{
@@ -198,12 +199,20 @@ public class OctNode implements Serializable{
         }
     }
 
-    public void delete (OctPoint point)
+    public void delete (OctPoint point, boolean deleteByReference)
     {
         if (isLeaf)
         {
-            this.storedData = deletePoints(point,this.storedData);
-            this.duplicates = deletePoints(point,this.duplicates);
+            if (!deleteByReference)
+            {
+                this.storedData = deletePoints(point,this.storedData);
+                this.duplicates = deletePoints(point,this.duplicates);
+            }
+            else
+            {
+                this.storedData = deletePointsByReference(point,this.storedData);
+                this.duplicates = deletePointsByReference(point,this.duplicates);
+            }
 
             if (this.parent != null)
             {
@@ -228,21 +237,131 @@ public class OctNode implements Serializable{
 
             if (isContainsNull(point))
             {
-                children[0].delete(point);
+                children[0].delete(point, deleteByReference);
                 return;
             }
             else if (withinTheRange(point, minX, maxX, minY, maxY, minZ, maxZ)) {
-                children[i].delete(point);
+                children[i].delete(point, deleteByReference);
                 return;
             }
         }
 
     }
 
-    public void update (OctPoint point)
+    public HashSet<String> search (OctPoint point)
     {
-        insert(point);
-        delete(point);
+        if (this.isLeaf)
+        {
+            return getReferences(point, this.storedData, this.duplicates);
+        }
+        else
+        {
+            OctNode[] children = this.getChildren();
+            for (int i = 0; i < children.length; i++) {
+                Object minX = children[i].getX1(), minY = children[i].getY1(), minZ = children[i].getZ1();
+                Object maxX = children[i].getX2(), maxY = children[i].getY2(), maxZ = children[i].getZ2();
+
+                if (isContainsNull(point))
+                {
+                   return children[0].search(point);
+
+                }
+                else if (withinTheRange(point, minX, maxX, minY, maxY, minZ, maxZ)) {
+                    return children[i].search(point);
+                }
+            }
+        }
+        return new HashSet<>();
+    }
+
+    public String searchByClusteringKey(OctPoint point)
+    {
+        if (this.isLeaf)
+        {
+            return getReferencesByClusteringKey(point,this.storedData,this.duplicates,point.getClusteringKey());
+        }
+        OctNode[] children = this.getChildren();
+        for (int i = 0; i < children.length; i++) {
+            Object minX = children[i].getX1(), minY = children[i].getY1(), minZ = children[i].getZ1();
+            Object maxX = children[i].getX2(), maxY = children[i].getY2(), maxZ = children[i].getZ2();
+
+            if (isContainsNull(point))
+            {
+                return children[0].searchByClusteringKey(point);
+
+            }
+            else if (withinTheRange(point, minX, maxX, minY, maxY, minZ, maxZ)) {
+                return children[i].searchByClusteringKey(point);
+            }
+        }
+        return "";
+    }
+
+    public boolean find (OctPoint point)
+    {
+        if (this.isLeaf)
+        {
+            return containsPoint(point, this.storedData) || containsPoint(point, this.duplicates);
+        }
+        OctNode[] children = this.getChildren();
+        for (int i = 0; i < children.length; i++) {
+            Object minX = children[i].getX1(), minY = children[i].getY1(), minZ = children[i].getZ1();
+            Object maxX = children[i].getX2(), maxY = children[i].getY2(), maxZ = children[i].getZ2();
+
+            if (isContainsNull(point))
+            {
+                return children[0].find(point);
+
+            }
+            else if (withinTheRange(point, minX, maxX, minY, maxY, minZ, maxZ)) {
+                return children[i].find(point);
+            }
+        }
+        return false;
+    }
+
+//    public void update (OctPoint point)
+//    {
+//        insert(point);
+//        delete(point);
+//    }
+    public String getReferencesByClusteringKey (OctPoint point, Vector<OctPoint> storedData, Vector<OctPoint> duplicates,Object clusteringKey)
+    {
+        for (OctPoint target : storedData)
+        {
+            if (isEqual(point, target) && target.getClusteringKey().equals(clusteringKey))
+            {
+                return target.getReference();
+            }
+        }
+        for (OctPoint target : duplicates)
+        {
+            if (isEqual(point, target) && target.getClusteringKey().equals(clusteringKey))
+            {
+                return target.getReference();
+            }
+        }
+        return "";
+    }
+    public HashSet<String> getReferences(OctPoint point, Vector<OctPoint> storedData, Vector<OctPoint> duplicates)
+    {
+        HashSet<String> res = new HashSet<>();
+        for (OctPoint target : storedData)
+        {
+            if (isEqual(point, target))
+            {
+                res.add(target.getReference());
+            }
+        }
+
+        for (OctPoint target : duplicates)
+        {
+            if (isEqual(point, target))
+            {
+                res.add(target.getReference());
+            }
+        }
+        return res;
     }
     public boolean checkAllChildrenAreLeaves (OctNode[] children)
     {
@@ -293,6 +412,19 @@ public class OctNode implements Serializable{
         }
         return storedData;
     }
+    public Vector<OctPoint> deletePointsByReference(OctPoint point, Vector<OctPoint> storedData)
+    {
+        for (int i = 0; i < storedData.size(); i++)
+        {
+            OctPoint target = storedData.get(i);
+            if (isEqual(point, target) && point.getReference().equals(target.getReference()))
+            {
+                storedData.remove(i);
+                i--;
+            }
+        }
+        return storedData;
+    }
     public boolean containsPointAndReference(OctPoint point, Vector<OctPoint> storedData)
     {
         for (OctPoint target: storedData)
@@ -315,33 +447,6 @@ public class OctNode implements Serializable{
         }
         return false;
     }
-
-    public boolean find(OctPoint Point)
-    {
-        if (isLeaf)
-        {
-            Vector<OctPoint> storedData = this.getStoredData();
-            for (OctPoint target: storedData)
-            {
-                if (compare(target.getX(),(Point.getX())) == 0) return true;
-            }
-            return false;
-        }
-        OctNode[] children = this.children;
-        for (OctNode node : children)
-        {
-            Object minX = node.getX1(), minY = node.getY1(), minZ = node.getZ1();
-            Object maxX = node.getX2(), maxY = node.getY2(), maxZ = node.getZ2();
-            if (withinTheRange(Point,minX,maxX,minY,maxY,minZ,maxZ))
-            {
-                node.find(Point);
-            }
-
-        }
-        return false;
-    }
-
-
     public void printTree()
     {
         if (this.isLeaf)
@@ -469,6 +574,6 @@ public class OctNode implements Serializable{
     }
 
     public static void main(String[] args) {
-        Vector<OctPoint> v = new Vector<>();
+
     }
 }

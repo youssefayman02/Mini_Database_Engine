@@ -21,19 +21,28 @@ public class OctTree implements Serializable {
         root.insert(point);
     }
 
-    public void delete (Object o1,Object o2, Object o3, Object clusteringKey, String reference)
+    public void delete (Object o1,Object o2, Object o3, String reference, boolean deleteByReference)
     {
-        OctPoint point = new OctPoint(o1,o2,o3, clusteringKey, reference);
-        root.delete(point);
+        OctPoint point = new OctPoint(o1,o2,o3,null, reference);
+        root.delete(point,deleteByReference);
     }
 
-
-    public boolean find (Object o1, Object o2, Object o3, String reference, Object clusteringKey)
+    public HashSet<String> search (Object o1, Object o2, Object o3)
     {
-        OctPoint point = new OctPoint(o1, o2, o3, clusteringKey, reference);
+        OctPoint point = new OctPoint(o1, o2, o3, null,"");
+        return root.search(point);
+    }
+    public String searchByClusteringKey (Object o1, Object o2, Object o3, Object clusteringKey)
+    {
+        OctPoint point = new OctPoint(o1, o2, o3, clusteringKey,"");
+        return root.searchByClusteringKey(point);
+    }
+
+    public boolean find (Object o1, Object o2, Object o3)
+    {
+        OctPoint point = new OctPoint(o1, o2, o3, null, "");
         return root.find(point);
     }
-
     public void printTree()
     {
         root.printTree();
@@ -72,39 +81,40 @@ public class OctTree implements Serializable {
     }
 
     public static void main(String[] args) {
-        OctNode root = new OctNode(1,100,1.0,100.0,"aaaaa","zzzzz", true, null);
-        OctTree tree = new OctTree(root,"","","");
-        tree.insert(2,new Double(2.0),"bbbbd",5,"reference");
-        tree.insert(12,new Double(80.0),"ccccc",5,"reference");
-        tree.insert(49,new Double(40.0),"ccccd",5,"reference");
-        tree.insert(23,new DBAppNull(),"mzzzz",5,"reference");
-        tree.insert(42,new Double(16.5),new DBAppNull(),5,"reference");
-        tree.insert(30,new Double(23.0),"mzzzz",5,"reference");
-        tree.insert(30,new Double(23.0),"mzzzz",5,"reference1");
-        tree.insert(30,new Double(23.0),"mzzzz",5,"reference2");
-        tree.insert(30,new Double(23.0),"mzzzz",5,"reference3");
-        tree.insert(40,new Double(75.5),"eeeed",5,"reference");
-        tree.insert(31,new Double(10.0),"bbbbs",5,"reference");
-        tree.insert(45,new Double(25.0),"bbscb",5,"reference");
-        tree.insert(55,new Double(56.0),"cccc",5,"reference");
-//        tree.insert(23,new DBAppNull(),"mzzzz",5,"reference");
+//        OctNode root = new OctNode(1,100,1.0,100.0,"aaaaa","zzzzz", true, null);
+//        OctTree tree = new OctTree(root,"","","");
+//        tree.insert(2,new Double(2.0),"bbbbd",1,"reference");
+//        tree.insert(12,new Double(80.0),"ccccc",2,"reference");
+//        tree.insert(49,new Double(40.0),"ccccd",3,"reference");
+//        tree.insert(23,new DBAppNull(),"mzzzz",4,"reference");
 //        tree.insert(42,new Double(16.5),new DBAppNull(),5,"reference");
-//        tree.insert(1,new Double(5.0),"aaaaa",5,"reference");
-//        tree.insert(28,new DBAppNull(),"bbgbb",5,"reference");
-//        tree.insert(55,new Double(44.0),new DBAppNull(),5,"reference");
-//        tree.insert(63,new DBAppNull(),"meziz",5,"reference");
-//        tree.insert(new DBAppNull(),new Double(93.5),"eyeee",5,"reference");
-//        tree.insert(new DBAppNull(),new Double(73.0),"seiff",5,"reference");
-//        tree.insert(63,new DBAppNull(),"meziz",5,"reference1");
-//        tree.insert(new DBAppNull(),new Double(93.5),"eyeee",5,"reference2");
-//        tree.insert(new DBAppNull(),new Double(73.0),"seiff",5,"reference3");
-        System.out.println("Before---------------------------------------");
-        tree.printTree();
-        tree.delete(30,new Double(23.0),"mzzzz",5,"reference");
-        tree.delete(40,new Double(75.5),"eeeed",5,"reference");
-        tree.delete(31,new Double(10.0),"bbbbs",5,"reference");
-        System.out.println("After-----------------------------------------");
-        tree.printTree();
+//        tree.insert(30,new Double(23.0),"mzzzz",6,"reference");
+//        tree.insert(30,new Double(23.0),"mzzzz",7,"reference1");
+//        tree.insert(30,new Double(23.0),"mzzzz",8,"reference2");
+//        tree.insert(30,new Double(23.0),"mzzzz",9,"reference3");
+//        tree.insert(40,new Double(75.5),"eeeed",10,"reference");
+//        tree.insert(31,new Double(10.0),"bbbbs",11,"reference");
+//        tree.insert(45,new Double(25.0),"bbscb",12,"reference");
+//        tree.insert(55,new Double(56.0),"cccc",13,"reference");
+//        tree.insert(23,new DBAppNull(),"mzzzz",14,"reference");
+//        tree.insert(42,new Double(16.5),new DBAppNull(),15,"reference");
+//        tree.insert(1,new Double(5.0),"aaaaa",16,"reference");
+//        tree.insert(28,new DBAppNull(),"bbgbb",17,"reference");
+//        tree.insert(55,new Double(44.0),new DBAppNull(),18,"reference");
+//        tree.insert(63,new DBAppNull(),"meziz",19,"reference");
+//        tree.insert(new DBAppNull(),new Double(93.5),"eyeee",20,"reference");
+//        tree.insert(new DBAppNull(),new Double(73.0),"seiff",21,"reference");
+//        tree.insert(63,new DBAppNull(),"meziz",22,"reference1");
+//        tree.insert(new DBAppNull(),new Double(93.5),"eyeee",23,"reference2");
+//        tree.insert(new DBAppNull(),new Double(73.0),"seiff",24,"reference3");
+//        System.out.println("Before---------------------------------------");
+//        tree.printTree();
+//        tree.delete(30,new Double(23.0),"mzzzz",5,"reference2",true);
+//        tree.delete(40,new Double(75.5),"eeeed",5,"reference",false);
+//        tree.delete(31,new Double(10.0),"bbbbs",5,"reference",true);
+//        System.out.println("After-----------------------------------------");
+//        tree.printTree();
+//        System.out.println(tree.searchByClusteringKey(new DBAppNull(),new Double(93.5),"eyeee",23));
 //         tree.insert(55,new Double(56.0),"cccc",5,"reference");
 //        tree.insert(31,new Double(63.0),"mzze",5,"reference");
 //        tree.insert(92,new Double(82.5),"eeve",5,"reference");
