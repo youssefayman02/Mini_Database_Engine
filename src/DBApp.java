@@ -6,13 +6,10 @@ import java.util.*;
 public class DBApp {
     static int MaximumRowsCountinTablePage;
     static int MaximumEntriesinOctreeNode ;
-    private boolean insertFlag;
-    private String currIndexPath;
 
     public DBApp()
     {
-        this.insertFlag = false;
-        this.currIndexPath = "";
+
     }
 
     public void init()
@@ -214,13 +211,16 @@ public class DBApp {
     {
         if (htblColNameValue.isEmpty()) throw new DBAppException("Clustering key value cannot be null");
 
-        String primaryKey = (String) readFromCSV(strTableName)[0];
+        Object[] tableInfo = new Object[5];
+        tableInfo = readFromCSV(strTableName);
+
+        String primaryKey = (String) tableInfo[0];
 
         if (!htblColNameValue.containsKey(primaryKey)) throw new DBAppException("Clustering key value cannot be null");
 
-        Hashtable<String, String> dataTypes = (Hashtable) readFromCSV(strTableName)[2];
-        Hashtable<String, Object> minValues = (Hashtable) readFromCSV(strTableName)[3];
-        Hashtable<String, Object> maxValues = (Hashtable) readFromCSV(strTableName)[4];
+        Hashtable<String, String> dataTypes = (Hashtable) tableInfo[2];
+        Hashtable<String, Object> minValues = (Hashtable) tableInfo[3];
+        Hashtable<String, Object> maxValues = (Hashtable) tableInfo[4];
 
         checkColDataTypes(dataTypes, htblColNameValue);
         checkColCompatibility(dataTypes, htblColNameValue);
@@ -362,11 +362,14 @@ public class DBApp {
 
         if (htblColNameValue.isEmpty()) return;
 
-        String clusteringKey = (String) readFromCSV(strTableName)[0];
-        String clusteringType = (String) readFromCSV(strTableName)[1];
-        Hashtable<String,String> dataTypes = (Hashtable) readFromCSV(strTableName)[2];
-        Hashtable<String,Object> minValues= (Hashtable) readFromCSV(strTableName)[3];
-        Hashtable<String,Object> maxValues = (Hashtable) readFromCSV(strTableName)[4];
+        Object[] tableInfo = new Object[5];
+        tableInfo = readFromCSV(strTableName);
+
+        String clusteringKey = (String) tableInfo[0];
+        String clusteringType = (String) tableInfo[1];
+        Hashtable<String,String> dataTypes = (Hashtable) tableInfo[2];
+        Hashtable<String,Object> minValues= (Hashtable) tableInfo[3];
+        Hashtable<String,Object> maxValues = (Hashtable) tableInfo[4];
 
         //make sure not to update the clustering key
         if (htblColNameValue.containsKey(clusteringKey))
@@ -414,44 +417,66 @@ public class DBApp {
         String tablePath = "src/main/resources/data/Tables/"+strTableName+"/"+strTableName+".ser";
         Table table = (Table) Deserialize(tablePath);
 
-        if (table.getNoPages() > 0){
-            int indexPage = 0;
-            boolean flag = false;
-            //search for the page to update in
-            for (Integer index : table.getPagesId())
-            {
-                String path = "src/main/resources/data/Tables/"+strTableName+"/Page"+index+".ser";
-                Page p = (Page) Deserialize(path);
-                Serialize(path,p);
-                if (compare(clusteringObject,p.getMinClusteringKey()) >= 0 && compare(p.getMaxClusteringKey(),clusteringObject) >= 0)
+        if (table.getPagesId().size() > 0) {
+            Vector<String> indicesPath = searchIfIndexExists(strTableName, table, htblColNameValue);
+            if (indicesPath.size() != 0) {
+                int pageId = -1;
+                for (String path : indicesPath)
                 {
-                    indexPage = index;
-                    flag = true;
-                    break;
+                    OctTree tree = (OctTree) Deserialize(path);
+                    String indexedCol1 = tree.getIndexedCol1();
+                    String indexedCol2 = tree.getIndexedCol2();
+                    String indexedCol3 = tree.getIndexedCol3();
+                    Object o1 = htblColNameValue.get(indexedCol1);
+                    Object o2 = htblColNameValue.get(indexedCol2);
+                    Object o3 = htblColNameValue.get(indexedCol3);
+                    int tempId = tree.searchByClusteringKey(o1, o2, o3, clusteringObject);
+                    if (tempId > -1)
+                    {
+                    }
                 }
-            }
-            if (!flag) throw new DBAppException("Clustering key value does not exits");
 
-            String updatePath = "src/main/resources/data/Tables/"+strTableName+"/Page"+indexPage+".ser";
-            Page updatePage = (Page) Deserialize(updatePath);
-            Vector<Hashtable<String,Object>> records = updatePage.getRecords();
-            int recordIndex = searchForRecordToUpdate(records,clusteringKey,clusteringObject);
-            for (String key: htblColNameValue.keySet())
-            {
-                records.get(recordIndex).replace(key,htblColNameValue.get(key));
             }
-            updatePage.setRecords(records);
-            Serialize(updatePath,updatePage);
+            else {
+                int indexPage = 0;
+                boolean flag = false;
+                //search for the page to update in
+                for (Integer index : table.getPagesId()) {
+                    String path = "src/main/resources/data/Tables/" + strTableName + "/Page" + index + ".ser";
+                    Page p = (Page) Deserialize(path);
+                    Serialize(path, p);
+                    if (compare(clusteringObject, p.getMinClusteringKey()) >= 0 && compare(p.getMaxClusteringKey(), clusteringObject) >= 0) {
+                        indexPage = index;
+                        flag = true;
+                        break;
+                    }
+                }
+                if (!flag) throw new DBAppException("Clustering key value does not exits");
+
+                String updatePath = "src/main/resources/data/Tables/" + strTableName + "/Page" + indexPage + ".ser";
+                Page updatePage = (Page) Deserialize(updatePath);
+                Vector<Hashtable<String, Object>> records = updatePage.getRecords();
+                int recordIndex = searchForRecordToUpdate(records, clusteringKey, clusteringObject);
+                for (String key : htblColNameValue.keySet()) {
+                    records.get(recordIndex).replace(key, htblColNameValue.get(key));
+                }
+                updatePage.setRecords(records);
+                Serialize(updatePath, updatePage);
+
+            }
         }
         Serialize(tablePath,table);
     }
 
     public void deleteFromTable(String strTableName, Hashtable<String,Object> htblColNameValue) throws DBAppException {
 
-        String clusteringKey = (String) readFromCSV(strTableName)[0];
-        Hashtable<String,String> dataTypes = (Hashtable) readFromCSV(strTableName)[2];
-        Hashtable<String,Object> minValues= (Hashtable) readFromCSV(strTableName)[3];
-        Hashtable<String,Object> maxValues = (Hashtable) readFromCSV(strTableName)[4];
+        Object[] tableInfo = new Object[5];
+        tableInfo = readFromCSV(strTableName);
+
+        String clusteringKey = (String) tableInfo[0];
+        Hashtable<String,String> dataTypes = (Hashtable) tableInfo[2];
+        Hashtable<String,Object> minValues= (Hashtable) tableInfo[3];
+        Hashtable<String,Object> maxValues = (Hashtable) tableInfo[4];
 
         checkColDataTypes(dataTypes, htblColNameValue);
         checkColCompatibility(dataTypes, htblColNameValue);
@@ -861,12 +886,12 @@ public class DBApp {
 //		dbApp.createTable( strTableName, "id", htblColNameType,htblColNameMin,htblColNameMax);
 //            String[] col = {"id","name","gpa"};
 //            dbApp.createIndex(strTableName,col);
-          Hashtable htblColNameValue = new Hashtable();
-          htblColNameValue.put("id", new Integer(3));
-          htblColNameValue.put("name", new DBAppNull());
-          htblColNameValue.put("gpa", new Double(1.6));
-        System.out.println("Before************************************************************************************");
-        dbApp.printPages(strTableName);
+//          Hashtable htblColNameValue = new Hashtable();
+//          htblColNameValue.put("id", new Integer(3));
+//          htblColNameValue.put("name", new DBAppNull());
+//          htblColNameValue.put("gpa", new Double(1.6));
+//        System.out.println("Before************************************************************************************");
+//        dbApp.printPages(strTableName);
 //		dbApp.deleteFromTable( strTableName , htblColNameValue );
 //		dbApp.insertIntoTable( strTableName , htblColNameValue );
 //		dbApp.updateTable(strTableName,"4",htblColNameValue);
