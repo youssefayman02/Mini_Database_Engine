@@ -5,7 +5,15 @@ import java.util.*;
 
 public class DBApp {
     static int MaximumRowsCountinTablePage;
-    static int MaximumEntriesinOctreeNode = 4;
+    static int MaximumEntriesinOctreeNode ;
+    private boolean insertFlag;
+    private String currIndexPath;
+
+    public DBApp()
+    {
+        this.insertFlag = false;
+        this.currIndexPath = "";
+    }
 
     public void init()
     {
@@ -44,13 +52,15 @@ public class DBApp {
         if (!htblColNameType.containsKey(strClusteringKeyColumn)) throw new DBAppException("Clustering key Column does not exist");
 
         File tableDirectory = new File("src/main/resources/data/Tables/"+strTableName);
+        File indexDirectory = new File("src/main/resources/data/Tables/"+strTableName+"/Indices");
         if (!tableDirectory.exists()) tableDirectory.mkdir();
         else throw new DBAppException("Table already exists");
+        indexDirectory.mkdirs();
 
         //Create table and initializing its attributes then serializing it
         Vector<Page> pages = new Vector<>();
         Vector<Integer> pagesID = new Vector<>();
-        Table table = new Table(strTableName,pages,pagesID,0,0);
+        Table table = new Table(strTableName,pages,pagesID,new Vector<>(),0);
         String tablePath = "src/main/resources/data/Tables/"+strTableName+"/"+strTableName+".ser";
         Serialize(tablePath,table);
 
@@ -73,9 +83,6 @@ public class DBApp {
 
     public void createIndex(String strTableName, String[] strarrColName) throws DBAppException
     {
-        File tableDirectory = new File("src/main/resources/data/Tables/"+strTableName);
-        if (!tableDirectory.exists()) throw new DBAppException("Table does not exist");
-
         String primaryKey = (String) readFromCSV(strTableName)[0];
         String clusteringType = (String) readFromCSV(strTableName)[1];
         Hashtable<String, String> dataTypes = (Hashtable) readFromCSV(strTableName)[2];
@@ -88,12 +95,121 @@ public class DBApp {
             if (!dataTypes.containsKey(col)) throw new DBAppException("Column does not exist");
         }
 
+        Table table = (Table) Deserialize("src/main/resources/data/Tables/"+strTableName+"/"+strTableName+".ser");
+        Vector<Integer> indicesId = table.getIndicesId();
+        if (indexIsCreated(strTableName,strarrColName, table)) throw new DBAppException("Index Already Created");
 
+        String indexedCol1 = strarrColName[0];
+        String indexedCol2 = strarrColName[1];
+        String indexedCol3 = strarrColName[2];
+        Object minX = minValues.get(indexedCol1);
+        Object maxX = maxValues.get(indexedCol1);
+        Object minY = minValues.get(indexedCol2);
+        Object maxY = maxValues.get(indexedCol2);
+        Object minZ = minValues.get(indexedCol3);
+        Object maxZ = maxValues.get(indexedCol3);
+        OctNode root = new OctNode(minX, maxX, minY, maxY, minZ, maxZ, true, null);
+        OctTree tree = new OctTree(root, indexedCol1, indexedCol2, indexedCol3);
+        int indexId = indicesId.size();
+        String indexPath = "src/main/resources/data/Tables/"+strTableName+"/Indices/index"+indexId+".ser";
+        indicesId.add(indexId);
+        table.setIndicesId(indicesId);
+        //to handle if index is created after inserting the records
+        if (table.getPagesId().size() != 0)
+        {
+            populateRecordsInIndex(strTableName,table.getPagesId(),tree,primaryKey);
+        }
 
-
-
+        updateMetaData(strTableName,strarrColName, indexId);
+        Serialize("src/main/resources/data/Tables/"+strTableName+"/"+strTableName+".ser", table);
+        Serialize(indexPath, tree);
     }
 
+    public void updateMetaData(String strTableName, String[] strarrColName, int indexId) throws DBAppException {
+        try {
+            FileReader oldMetaDataFile = new FileReader("src/main/resources/metadata.csv");
+            BufferedReader br = new BufferedReader(oldMetaDataFile);
+            StringBuilder metadata = new StringBuilder();
+            String curLine = "";
+
+            while ((curLine = br.readLine()) != null) {
+                String[] curLineSplit = curLine.split(",");
+
+                if (!curLineSplit[0].equals(strTableName))
+                {
+                    metadata.append(curLine);
+                    metadata.append("\n");
+                    continue;
+                }
+
+                StringBuilder tmpString = new StringBuilder();
+
+                for (String col : strarrColName)
+                {
+                    if (col.equals(curLineSplit[1]))
+                    {
+                        tmpString = new StringBuilder();
+                        for (int i = 0; i < curLineSplit.length;i++)
+                        {
+                            if (i == 3) tmpString.append("true,");
+                            else if (i == 4) tmpString.append("Index"+indexId+",");
+                            else if (i == 5) tmpString.append("Octree,");
+                            else tmpString.append(curLineSplit[i]+",");
+                        }
+                    }
+                }
+
+                metadata.append(tmpString+"\n");
+
+            }
+            FileWriter metaDataFile = new FileWriter("src/main/resources/metadata.csv");
+            metaDataFile.write(metadata.toString());
+            metaDataFile.close();
+        }
+        catch (Exception e)
+        {
+            throw new DBAppException("Exception thrown in updateMetaData");
+        }
+    }
+    public void populateRecordsInIndex(String strTableName, Vector<Integer> pagesId, OctTree tree, String primaryKey) throws DBAppException {
+        readConfig();
+        for (Integer id : pagesId)
+        {
+            String path = "src/main/resources/data/Tables/"+strTableName+"/Page"+id+".ser";
+            Page target = (Page) Deserialize(path);
+            Vector<Hashtable<String, Object>> records = target.getRecords();
+            for (Hashtable<String,Object> record : records)
+            {
+                String indexedCol1 = tree.getIndexedCol1();
+                String indexedCol2 = tree.getIndexedCol2();
+                String indexedCol3 = tree.getIndexedCol3();
+                Object o1 = record.get(indexedCol1);
+                Object o2 = record.get(indexedCol2);
+                Object o3 = record.get(indexedCol3);
+                Object clusteringKey = record.get(primaryKey);
+                tree.insert(o1,o2,o3,clusteringKey,id);
+            }
+        }
+    }
+    public boolean indexIsCreated(String strTableName, String[] strarrColName, Table table) throws DBAppException {
+        Vector<Integer> indicesId = table.getIndicesId();
+        if (indicesId.size() == 0) return false;
+        HashSet<String> hs = new HashSet<>();
+        for (String s : strarrColName)
+        {
+            hs.add(s);
+        }
+        for (Integer id : indicesId)
+        {
+            String path = "src/main/resources/data/Tables/"+strTableName+"/Indices/index"+id+".ser";
+            OctTree tree = (OctTree) Deserialize(path);
+            if (hs.contains(tree.getIndexedCol1()) && hs.contains(tree.getIndexedCol2()) && hs.contains(tree.getIndexedCol3()))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
     public void insertIntoTable(String strTableName, Hashtable<String,Object> htblColNameValue) throws DBAppException
     {
         if (htblColNameValue.isEmpty()) throw new DBAppException("Clustering key value cannot be null");
@@ -122,6 +238,8 @@ public class DBApp {
 
         //to know whether the page I will insert record in it is full or not
         readConfig();
+        Vector<String> indiciesPath = new Vector<>();
+        indiciesPath = searchIfIndexExists(strTableName,table,htblColNameValue);
 
         //there is no pages yet in the table so we need to create our first page
         if (table.getNoPages() == 0)
@@ -135,6 +253,7 @@ public class DBApp {
             table.setPagesId(pagesId);
             Serialize(pagePath, p);
             Serialize(tablePath,table);
+            insertIntoIndex(indiciesPath, htblColNameValue, htblColNameValue.get(primaryKey), 0);
             return;
         }
 
@@ -155,6 +274,7 @@ public class DBApp {
             p.setRecords(records);
             Serialize(pagePath,p);
             Serialize(tablePath,table);
+            insertIntoIndex(indiciesPath, htblColNameValue, htblColNameValue.get(primaryKey), indexOfPage);
             return;
         }
 
@@ -172,6 +292,8 @@ public class DBApp {
         p.setRecords(records);
         Serialize(pagePath,p);
         Serialize(tablePath,table);
+        insertIntoIndex(indiciesPath, htblColNameValue,htblColNameValue.get(primaryKey),indexOfPage);
+        deleteFromIndexByClusteringKey(indiciesPath,shiftedRecord,shiftedRecord.get(primaryKey));
         //check if this page is the last page so I will have to create a new page to enter the shifted record
         if (pagesId.lastElement() == p.getPageId())
         {
@@ -186,15 +308,56 @@ public class DBApp {
             pagesId.add(newId);
             table.setNoPages(table.getNoPages() + 1);
             Serialize(tablePath,table);
+            insertIntoIndex(indiciesPath, shiftedRecord, htblColNameValue.get(primaryKey), newId);
             return;
         }
         insertIntoTable(strTableName,shiftedRecord);
 
-
-
-
     }
 
+    public  void deleteFromIndexByClusteringKey (Vector<String> indicesPath, Hashtable<String,Object> htblColNameValue, Object clusteringKey) throws DBAppException {
+        for (String path : indicesPath)
+        {
+            OctTree tree = (OctTree) Deserialize(path);
+            Object o1 = htblColNameValue.get(tree.getIndexedCol1());
+            Object o2 = htblColNameValue.get(tree.getIndexedCol2());
+            Object o3 = htblColNameValue.get(tree.getIndexedCol3());
+            tree.delete(o1, o2, o3, clusteringKey,true);
+            Serialize(path, tree);
+        }
+    }
+
+    public void insertIntoIndex (Vector<String> indicesPath, Hashtable<String,Object> htblColNameValue, Object clusteringKey,int pageId) throws DBAppException {
+
+        for (String path : indicesPath)
+        {
+            OctTree tree = (OctTree) Deserialize(path);
+            Object o1 = htblColNameValue.get(tree.getIndexedCol1());
+            Object o2 = htblColNameValue.get(tree.getIndexedCol2());
+            Object o3 = htblColNameValue.get(tree.getIndexedCol3());
+            tree.insert(o1, o2, o3, clusteringKey, pageId);
+            Serialize(path, tree);
+        }
+    }
+    public Vector<String> searchIfIndexExists(String strTableName,Table table, Hashtable<String,Object> htblColNameValue) throws DBAppException {
+
+        Vector<String> res = new Vector<>();
+        Vector<Integer> indicesId = table.getIndicesId();
+        for (Integer id : indicesId)
+        {
+            String path = "src/main/resources/data/Tables/"+strTableName+"/Indices/index"+id+".ser";
+            OctTree tree = (OctTree) Deserialize(path);
+            String indexedCol1 = tree.getIndexedCol1();
+            String indexedCol2 = tree.getIndexedCol2();
+            String indexedCol3 = tree.getIndexedCol3();
+            if (htblColNameValue.containsKey(indexedCol1) && htblColNameValue.containsKey(indexedCol2) && htblColNameValue.containsKey(indexedCol3))
+            {
+                res.add(path);
+            }
+        }
+
+        return res;
+    }
     public void updateTable(String strTableName, String strClusteringKeyValue, Hashtable<String,Object> htblColNameValue ) throws DBAppException {
 
         if (htblColNameValue.isEmpty()) return;
@@ -657,6 +820,7 @@ public class DBApp {
         String path = "src/main/resources/data/Tables/"+tableName+"/"+tableName+".ser";
         Table t = (Table) Deserialize(path);
         Serialize(path,t);
+        System.out.println("Page Content ");
         for (Integer index : t.getPagesId())
         {
             String pagePath = "src/main/resources/data/Tables/"+tableName+"/Page"+index+".ser";
@@ -667,36 +831,46 @@ public class DBApp {
             System.out.println(p.getMinClusteringKey());
         }
         System.out.println("Table contents");
-        System.out.println(t.getNoPages()+" "+t.getPagesId().toString());
+        System.out.println(t.getNoPages()+" "+t.getPagesId().toString() + "Indices: " + t.getIndicesId().toString());
+        System.out.println("Index Content");
+        for (Integer index : t.getIndicesId())
+        {
+            String indexPath = "src/main/resources/data/Tables/"+tableName+"/Indices/index"+index+".ser";
+            OctTree tree = (OctTree) Deserialize(indexPath);
+            Serialize(indexPath,tree);
+            tree.printTree();
+        }
     }
 
     public static void main(String[] args) throws IOException, DBAppException, ClassNotFoundException, ParseException {
         String strTableName = "students";
         DBApp dbApp = new DBApp();
-       dbApp.init();
-		Hashtable<String, String> htblColNameType = new Hashtable<>();
-		Hashtable<String, String> htblColNameMax = new Hashtable();
-		Hashtable<String, String> htblColNameMin = new Hashtable();
-		htblColNameType.put("id", "java.lang.Integer");
-		htblColNameType.put("name", "java.lang.String");
-		htblColNameType.put("gpa", "java.lang.Double");
-		htblColNameMax.put("id", "100");
-		htblColNameMax.put("name", "zzzzzzzzzzzzzzzzzzzzzzz");
-		htblColNameMax.put("gpa", "4");
-		htblColNameMin.put("id", "1");
-		htblColNameMin.put("name", "aaaaaaaaaaaaaaaaaaaaaaa");
-		htblColNameMin.put("gpa", "0.7");
-		dbApp.createTable( strTableName, "id", htblColNameType,htblColNameMin,htblColNameMax);
-//      Hashtable htblColNameValue = new Hashtable();
-//      htblColNameValue.put("id", new Integer(4));
-//      htblColNameValue.put("name", "youssef");
-//      htblColNameValue.put("gpa", new Double(1.6));
-//      System.out.println("Before");
-//      dbApp.printPages(strTableName);
+//        dbApp.init();
+//		Hashtable<String, String> htblColNameType = new Hashtable<>();
+//		Hashtable<String, String> htblColNameMax = new Hashtable();
+//		Hashtable<String, String> htblColNameMin = new Hashtable();
+//		htblColNameType.put("id", "java.lang.Integer");
+//		htblColNameType.put("name", "java.lang.String");
+//		htblColNameType.put("gpa", "java.lang.Double");
+//		htblColNameMax.put("id", "100");
+//		htblColNameMax.put("name", "zzzzzzzzzzzzzzzzzzzzzzz");
+//		htblColNameMax.put("gpa", "4");
+//		htblColNameMin.put("id", "1");
+//		htblColNameMin.put("name", "aaaaaaaaaaaaaaaaaaaaaaa");
+//		htblColNameMin.put("gpa", "0.7");
+//		dbApp.createTable( strTableName, "id", htblColNameType,htblColNameMin,htblColNameMax);
+//            String[] col = {"id","name","gpa"};
+//            dbApp.createIndex(strTableName,col);
+          Hashtable htblColNameValue = new Hashtable();
+          htblColNameValue.put("id", new Integer(3));
+          htblColNameValue.put("name", new DBAppNull());
+          htblColNameValue.put("gpa", new Double(1.6));
+        System.out.println("Before************************************************************************************");
+        dbApp.printPages(strTableName);
 //		dbApp.deleteFromTable( strTableName , htblColNameValue );
 //		dbApp.insertIntoTable( strTableName , htblColNameValue );
 //		dbApp.updateTable(strTableName,"4",htblColNameValue);
-//		System.out.println("After");
+//		System.out.println("After**************************************************************************************");
 //		dbApp.printPages(strTableName);
 
     }

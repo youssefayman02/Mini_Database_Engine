@@ -15,32 +15,32 @@ public class OctTree implements Serializable {
         this.indexedCol3 = indexedCol3;
     }
 
-    public void insert (Object o1,Object o2,Object o3,Object clusteringKey, String reference)
+    public void insert (Object o1,Object o2,Object o3,Object clusteringKey, int pageId)
     {
-        OctPoint point = new OctPoint(o1, o2, o3, clusteringKey, reference);
+        OctPoint point = new OctPoint(o1, o2, o3, clusteringKey, pageId);
         root.insert(point);
     }
 
-    public void delete (Object o1,Object o2, Object o3, String reference, boolean deleteByReference)
+    public void delete (Object o1,Object o2, Object o3,Object clusteringKey, boolean deleteByClusteringKey)
     {
-        OctPoint point = new OctPoint(o1,o2,o3,null, reference);
-        root.delete(point,deleteByReference);
+        OctPoint point = new OctPoint(o1,o2,o3,clusteringKey,-1);
+        root.delete(point,deleteByClusteringKey);
     }
 
-    public HashSet<String> search (Object o1, Object o2, Object o3)
+    public TreeSet<Integer> search (Object o1, Object o2, Object o3)
     {
-        OctPoint point = new OctPoint(o1, o2, o3, null,"");
+        OctPoint point = new OctPoint(o1, o2, o3, null,-1);
         return root.search(point);
     }
-    public String searchByClusteringKey (Object o1, Object o2, Object o3, Object clusteringKey)
+    public int searchByClusteringKey (Object o1, Object o2, Object o3, Object clusteringKey)
     {
-        OctPoint point = new OctPoint(o1, o2, o3, clusteringKey,"");
+        OctPoint point = new OctPoint(o1, o2, o3, clusteringKey,-1);
         return root.searchByClusteringKey(point);
     }
 
     public boolean find (Object o1, Object o2, Object o3)
     {
-        OctPoint point = new OctPoint(o1, o2, o3, null, "");
+        OctPoint point = new OctPoint(o1, o2, o3, null, -1);
         return root.find(point);
     }
     public void printTree()
@@ -109,12 +109,11 @@ public class OctTree implements Serializable {
 //        tree.insert(new DBAppNull(),new Double(73.0),"seiff",24,"reference3");
 //        System.out.println("Before---------------------------------------");
 //        tree.printTree();
-//        tree.delete(30,new Double(23.0),"mzzzz",5,"reference2",true);
+//        tree.delete(30,new Double(23.0),"mzzzz",7,"reference2",true);
 //        tree.delete(40,new Double(75.5),"eeeed",5,"reference",false);
-//        tree.delete(31,new Double(10.0),"bbbbs",5,"reference",true);
-//        System.out.println("After-----------------------------------------");
+//        tree.delete(31,new Double(10.0),"bbbbs",5,"reference",false);
 //        tree.printTree();
-//        System.out.println(tree.searchByClusteringKey(new DBAppNull(),new Double(93.5),"eyeee",23));
+//        System.out.println(tree.search(new DBAppNull(),new Double(93.5),"eyeee"));
 //         tree.insert(55,new Double(56.0),"cccc",5,"reference");
 //        tree.insert(31,new Double(63.0),"mzze",5,"reference");
 //        tree.insert(92,new Double(82.5),"eeve",5,"reference");

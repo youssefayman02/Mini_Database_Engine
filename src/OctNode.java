@@ -1,7 +1,10 @@
+import com.sun.source.tree.Tree;
+
 import java.awt.*;
 import java.io.Serializable;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.TreeSet;
 import java.util.Vector;
 
 public class OctNode implements Serializable{
@@ -119,11 +122,11 @@ public class OctNode implements Serializable{
     {
         if (this.isLeaf())
         {
-            if (containsPointAndReference(point, this.storedData)) return;
+            if (containsPointAndPageId(point, this.storedData)) return;
 
-            if (containsPointAndReference(point, this.duplicates)) return;
+            if (containsPointAndPageId(point, this.duplicates)) return;
 
-            if (containsPoint(point, this.storedData) && !containsPointAndReference(point, this.duplicates))
+            if (containsPoint(point, this.storedData) && !containsPointAndPageId(point, this.duplicates))
             {
                 Vector<OctPoint> updatedDuplicates = this.getDuplicates();
                 updatedDuplicates.add(point);
@@ -199,19 +202,19 @@ public class OctNode implements Serializable{
         }
     }
 
-    public void delete (OctPoint point, boolean deleteByReference)
+    public void delete (OctPoint point, boolean deleteByClusteringKey)
     {
         if (isLeaf)
         {
-            if (!deleteByReference)
+            if (!deleteByClusteringKey)
             {
                 this.storedData = deletePoints(point,this.storedData);
                 this.duplicates = deletePoints(point,this.duplicates);
             }
             else
             {
-                this.storedData = deletePointsByReference(point,this.storedData);
-                this.duplicates = deletePointsByReference(point,this.duplicates);
+                this.storedData = deletePointsByClusteringKey(point,this.storedData);
+                this.duplicates = deletePointsByClusteringKey(point,this.duplicates);
             }
 
             if (this.parent != null)
@@ -237,22 +240,22 @@ public class OctNode implements Serializable{
 
             if (isContainsNull(point))
             {
-                children[0].delete(point, deleteByReference);
+                children[0].delete(point, deleteByClusteringKey);
                 return;
             }
             else if (withinTheRange(point, minX, maxX, minY, maxY, minZ, maxZ)) {
-                children[i].delete(point, deleteByReference);
+                children[i].delete(point, deleteByClusteringKey);
                 return;
             }
         }
 
     }
 
-    public HashSet<String> search (OctPoint point)
+    public TreeSet<Integer> search (OctPoint point)
     {
         if (this.isLeaf)
         {
-            return getReferences(point, this.storedData, this.duplicates);
+            return getPagesId(point, this.storedData, this.duplicates);
         }
         else
         {
@@ -271,14 +274,14 @@ public class OctNode implements Serializable{
                 }
             }
         }
-        return new HashSet<>();
+        return new TreeSet<>();
     }
 
-    public String searchByClusteringKey(OctPoint point)
+    public int searchByClusteringKey(OctPoint point)
     {
         if (this.isLeaf)
         {
-            return getReferencesByClusteringKey(point,this.storedData,this.duplicates,point.getClusteringKey());
+            return getPageIdByClusteringKey(point,this.storedData,this.duplicates,point.getClusteringKey());
         }
         OctNode[] children = this.getChildren();
         for (int i = 0; i < children.length; i++) {
@@ -294,7 +297,7 @@ public class OctNode implements Serializable{
                 return children[i].searchByClusteringKey(point);
             }
         }
-        return "";
+        return -1;
     }
 
     public boolean find (OctPoint point)
@@ -325,32 +328,32 @@ public class OctNode implements Serializable{
 //        insert(point);
 //        delete(point);
 //    }
-    public String getReferencesByClusteringKey (OctPoint point, Vector<OctPoint> storedData, Vector<OctPoint> duplicates,Object clusteringKey)
+    public int getPageIdByClusteringKey (OctPoint point, Vector<OctPoint> storedData, Vector<OctPoint> duplicates,Object clusteringKey)
     {
         for (OctPoint target : storedData)
         {
             if (isEqual(point, target) && target.getClusteringKey().equals(clusteringKey))
             {
-                return target.getReference();
+                return target.getPageId();
             }
         }
         for (OctPoint target : duplicates)
         {
             if (isEqual(point, target) && target.getClusteringKey().equals(clusteringKey))
             {
-                return target.getReference();
+                return target.getPageId();
             }
         }
-        return "";
+        return -1;
     }
-    public HashSet<String> getReferences(OctPoint point, Vector<OctPoint> storedData, Vector<OctPoint> duplicates)
+    public TreeSet<Integer> getPagesId(OctPoint point, Vector<OctPoint> storedData, Vector<OctPoint> duplicates)
     {
-        HashSet<String> res = new HashSet<>();
+        TreeSet<Integer> res = new TreeSet<>();
         for (OctPoint target : storedData)
         {
             if (isEqual(point, target))
             {
-                res.add(target.getReference());
+                res.add(target.getPageId());
             }
         }
 
@@ -358,7 +361,7 @@ public class OctNode implements Serializable{
         {
             if (isEqual(point, target))
             {
-                res.add(target.getReference());
+                res.add(target.getPageId());
             }
         }
         return res;
@@ -412,12 +415,12 @@ public class OctNode implements Serializable{
         }
         return storedData;
     }
-    public Vector<OctPoint> deletePointsByReference(OctPoint point, Vector<OctPoint> storedData)
+    public Vector<OctPoint> deletePointsByClusteringKey(OctPoint point, Vector<OctPoint> storedData)
     {
         for (int i = 0; i < storedData.size(); i++)
         {
             OctPoint target = storedData.get(i);
-            if (isEqual(point, target) && point.getReference().equals(target.getReference()))
+            if (isEqual(point, target) && point.getClusteringKey().equals(target.getClusteringKey()))
             {
                 storedData.remove(i);
                 i--;
@@ -425,11 +428,11 @@ public class OctNode implements Serializable{
         }
         return storedData;
     }
-    public boolean containsPointAndReference(OctPoint point, Vector<OctPoint> storedData)
+    public boolean containsPointAndPageId(OctPoint point, Vector<OctPoint> storedData)
     {
         for (OctPoint target: storedData)
         {
-            if (isEqual(point,target) && point.getReference().equals(target.getReference()))
+            if (isEqual(point,target) && point.getPageId() == target.getPageId())
             {
                 return true;
             }

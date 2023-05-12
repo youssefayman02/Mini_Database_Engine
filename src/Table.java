@@ -5,15 +5,17 @@ public class Table implements Serializable {
     private String tableName;
     transient private Vector<Page> Pages;
     private Vector<Integer> pagesId;// keep track of pagesID in my table
+    private Vector<Integer> indicesId;
     private int noPages;
-    private int numOfIndices;
 
-    public Table(String tableName, Vector<Page> pages, Vector<Integer> pagesId, int noPages, int numOfIndices) {
+
+    public Table(String tableName, Vector<Page> pages, Vector<Integer> pagesId,Vector<Integer> indicesId, int noPages) {
         this.tableName = tableName;
         this.Pages = pages;
         this.pagesId = pagesId;
+        this.indicesId = indicesId;
         this.noPages = noPages;
-        this.numOfIndices = numOfIndices;
+
     }
 
     public String getTableName() {
@@ -48,12 +50,12 @@ public class Table implements Serializable {
         this.noPages = noPages;
     }
 
-    public int getNumOfIndices() {
-        return numOfIndices;
+    public Vector<Integer> getIndicesId() {
+        return indicesId;
     }
 
-    public void setNumOfIndices(int numOfIndices) {
-        this.numOfIndices = numOfIndices;
+    public void setIndicesId(Vector<Integer> indicesId) {
+        this.indicesId = indicesId;
     }
 }
 

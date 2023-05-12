@@ -6,14 +6,14 @@ public class OctPoint implements Serializable {
     private Object y;
     private Object z;
     private Object clusteringKey;
-    private String reference;
-    public OctPoint(Object x, Object y, Object z,Object clusteringKey, String reference)
+    private int pageId;
+    public OctPoint(Object x, Object y, Object z,Object clusteringKey, int pageId)
     {
         this.x = x;
         this.y = y;
         this.z = z;
         this.clusteringKey = clusteringKey;
-        this.reference = reference;
+        this.pageId = pageId;
     }
 
     public Object getX() {
@@ -48,17 +48,16 @@ public class OctPoint implements Serializable {
         this.clusteringKey = clusteringKey;
     }
 
-    public String getReference() {
-        return reference;
+    public int getPageId() {
+        return pageId;
     }
 
-    public void setReference(String reference) {
-        this.reference = reference;
+    public void setPageId(int pageId) {
+        this.pageId = pageId;
     }
-
 
     @Override
     public String toString() {
-        return "X:" + this.x + " Y:" + this.y + " Z:" + this.z +" clusteringKey:" + this.clusteringKey + " Reference:" + this.reference;
+        return "X:" + this.x + " Y:" + this.y + " Z:" + this.z +" clusteringKey:" + this.clusteringKey + " PageId:" + this.pageId;
     }
 }
