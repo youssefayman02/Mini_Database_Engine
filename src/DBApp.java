@@ -4,8 +4,8 @@ import java.text.*;
 import java.util.*;
 
 public class DBApp {
-    static int MaximumRowsCountinTablePage;
-    static int MaximumEntriesinOctreeNode ;
+    static int MaximumRowsCountinTablePage = 1;
+    static int MaximumEntriesinOctreeNode = 2;
 
     public DBApp()
     {
@@ -52,6 +52,7 @@ public class DBApp {
         File indexDirectory = new File("src/main/resources/data/Tables/"+strTableName+"/Indices");
         if (!tableDirectory.exists()) tableDirectory.mkdir();
         else throw new DBAppException("Table already exists");
+
         indexDirectory.mkdirs();
 
         //Create table and initializing its attributes then serializing it
@@ -80,13 +81,17 @@ public class DBApp {
 
     public void createIndex(String strTableName, String[] strarrColName) throws DBAppException
     {
-        String primaryKey = (String) readFromCSV(strTableName)[0];
-        String clusteringType = (String) readFromCSV(strTableName)[1];
-        Hashtable<String, String> dataTypes = (Hashtable) readFromCSV(strTableName)[2];
-        Hashtable<String, Object> minValues = (Hashtable) readFromCSV(strTableName)[3];
-        Hashtable<String, Object> maxValues = (Hashtable) readFromCSV(strTableName)[4];
+        Object[] dataInfo = readFromCSV(strTableName);
+        String primaryKey = (String) dataInfo[0];
+        String clusteringType = (String) dataInfo[1];
+        Hashtable<String, String> dataTypes = (Hashtable) dataInfo[2];
+        Hashtable<String, Object> minValues = (Hashtable) dataInfo[3];
+        Hashtable<String, Object> maxValues = (Hashtable) dataInfo[4];
 
         if (strarrColName.length != 3) throw new DBAppException("Can not build index on the given columns");
+
+        validateColumnNames(strarrColName);
+
         for (String col : strarrColName)
         {
             if (!dataTypes.containsKey(col)) throw new DBAppException("Column does not exist");
@@ -94,17 +99,12 @@ public class DBApp {
 
         Table table = (Table) Deserialize("src/main/resources/data/Tables/"+strTableName+"/"+strTableName+".ser");
         Vector<Integer> indicesId = table.getIndicesId();
-        if (indexIsCreated(strTableName,strarrColName, table)) throw new DBAppException("Index Already Created");
 
-        String indexedCol1 = strarrColName[0];
-        String indexedCol2 = strarrColName[1];
-        String indexedCol3 = strarrColName[2];
-        Object minX = minValues.get(indexedCol1);
-        Object maxX = maxValues.get(indexedCol1);
-        Object minY = minValues.get(indexedCol2);
-        Object maxY = maxValues.get(indexedCol2);
-        Object minZ = minValues.get(indexedCol3);
-        Object maxZ = maxValues.get(indexedCol3);
+        if (indexIsCreated(strTableName,strarrColName, table)) throw new DBAppException("Index Already Created on the given columns");
+
+        String indexedCol1 = strarrColName[0], indexedCol2 = strarrColName[1], indexedCol3 = strarrColName[2];
+        Object minX = minValues.get(indexedCol1), minY = minValues.get(indexedCol2), minZ = minValues.get(indexedCol3);
+        Object maxX = maxValues.get(indexedCol1), maxY = maxValues.get(indexedCol2), maxZ = maxValues.get(indexedCol3);
         OctNode root = new OctNode(minX, maxX, minY, maxY, minZ, maxZ, true, null);
         OctTree tree = new OctTree(root, indexedCol1, indexedCol2, indexedCol3);
         int indexId = indicesId.size();
@@ -122,45 +122,44 @@ public class DBApp {
         Serialize(indexPath, tree);
     }
 
+    public void validateColumnNames (String[] strarrColName) throws DBAppException {
+        if (strarrColName[0].equals(strarrColName[1]) || strarrColName[0].equals(strarrColName[2]) || strarrColName[1].equals(strarrColName[2]))
+        {
+            throw new DBAppException("Can not build index on two same columns");
+        }
+
+    }
+
     public void updateMetaData(String strTableName, String[] strarrColName, int indexId) throws DBAppException {
         try {
             FileReader oldMetaDataFile = new FileReader("src/main/resources/metadata.csv");
             BufferedReader br = new BufferedReader(oldMetaDataFile);
-            StringBuilder metadata = new StringBuilder();
+            List<String[]> rows = new ArrayList<>();
             String curLine = "";
 
             while ((curLine = br.readLine()) != null) {
-                String[] curLineSplit = curLine.split(",");
+                String[] values = curLine.split(",");
+                rows.add(values);
+            }
 
-                if (!curLineSplit[0].equals(strTableName))
-                {
-                    metadata.append(curLine);
-                    metadata.append("\n");
-                    continue;
-                }
-
-                StringBuilder tmpString = new StringBuilder();
+            for (String[] row : rows)
+            {
+                if (!row[0].equals(strTableName)) continue;
 
                 for (String col : strarrColName)
                 {
-                    if (col.equals(curLineSplit[1]))
+                    if (row[1].equals(col))
                     {
-                        tmpString = new StringBuilder();
-                        for (int i = 0; i < curLineSplit.length;i++)
-                        {
-                            if (i == 3) tmpString.append("true,");
-                            else if (i == 4) tmpString.append("Index"+indexId+",");
-                            else if (i == 5) tmpString.append("Octree,");
-                            else tmpString.append(curLineSplit[i]+",");
-                        }
+                        row[4] = "Index"+indexId;
+                        row[5] = "Octree";
                     }
                 }
-
-                metadata.append(tmpString+"\n");
-
             }
             FileWriter metaDataFile = new FileWriter("src/main/resources/metadata.csv");
-            metaDataFile.write(metadata.toString());
+            for (String[] row : rows)
+            {
+                metaDataFile.write(String.join(",", row) + "\n");
+            }
             metaDataFile.close();
         }
         catch (Exception e)
@@ -168,8 +167,9 @@ public class DBApp {
             throw new DBAppException("Exception thrown in updateMetaData");
         }
     }
+
     public void populateRecordsInIndex(String strTableName, Vector<Integer> pagesId, OctTree tree, String primaryKey) throws DBAppException {
-        readConfig();
+        //readConfig();
         for (Integer id : pagesId)
         {
             String path = "src/main/resources/data/Tables/"+strTableName+"/Page"+id+".ser";
@@ -188,6 +188,7 @@ public class DBApp {
             }
         }
     }
+
     public boolean indexIsCreated(String strTableName, String[] strarrColName, Table table) throws DBAppException {
         Vector<Integer> indicesId = table.getIndicesId();
         if (indicesId.size() == 0) return false;
@@ -200,19 +201,19 @@ public class DBApp {
         {
             String path = "src/main/resources/data/Tables/"+strTableName+"/Indices/index"+id+".ser";
             OctTree tree = (OctTree) Deserialize(path);
-            if (hs.contains(tree.getIndexedCol1()) && hs.contains(tree.getIndexedCol2()) && hs.contains(tree.getIndexedCol3()))
+            if (hs.contains(tree.getIndexedCol1()) || hs.contains(tree.getIndexedCol2()) || hs.contains(tree.getIndexedCol3()))
             {
                 return true;
             }
         }
         return false;
     }
+
     public void insertIntoTable(String strTableName, Hashtable<String,Object> htblColNameValue) throws DBAppException
     {
         if (htblColNameValue.isEmpty()) throw new DBAppException("Clustering key value cannot be null");
 
-        Object[] tableInfo = new Object[5];
-        tableInfo = readFromCSV(strTableName);
+        Object[] tableInfo = readFromCSV(strTableName);
 
         String primaryKey = (String) tableInfo[0];
 
@@ -237,9 +238,8 @@ public class DBApp {
         Vector<Integer> pagesId = table.getPagesId();
 
         //to know whether the page I will insert record in it is full or not
-        readConfig();
-        Vector<String> indiciesPath = new Vector<>();
-        indiciesPath = searchIfIndexExists(strTableName,table,htblColNameValue);
+        //readConfig();
+        Vector<String> indiciesPath = searchIfIndexExists(strTableName,table,htblColNameValue);
 
         //there is no pages yet in the table so we need to create our first page
         if (table.getNoPages() == 0)
@@ -292,8 +292,9 @@ public class DBApp {
         p.setRecords(records);
         Serialize(pagePath,p);
         Serialize(tablePath,table);
-        insertIntoIndex(indiciesPath, htblColNameValue,htblColNameValue.get(primaryKey),indexOfPage);
-        deleteFromIndexByClusteringKey(indiciesPath,shiftedRecord,shiftedRecord.get(primaryKey));
+        deleteFromIndex(indiciesPath, shiftedRecord, shiftedRecord.get(primaryKey), true);
+        insertIntoIndex(indiciesPath, htblColNameValue, htblColNameValue.get(primaryKey), indexOfPage);
+
         //check if this page is the last page so I will have to create a new page to enter the shifted record
         if (pagesId.lastElement() == p.getPageId())
         {
@@ -308,21 +309,23 @@ public class DBApp {
             pagesId.add(newId);
             table.setNoPages(table.getNoPages() + 1);
             Serialize(tablePath,table);
-            insertIntoIndex(indiciesPath, shiftedRecord, htblColNameValue.get(primaryKey), newId);
+            deleteFromIndex(indiciesPath, shiftedRecord, shiftedRecord.get(primaryKey), true);
+            insertIntoIndex(indiciesPath, shiftedRecord, shiftedRecord.get(primaryKey), newId);
             return;
         }
+
         insertIntoTable(strTableName,shiftedRecord);
 
     }
 
-    public  void deleteFromIndexByClusteringKey (Vector<String> indicesPath, Hashtable<String,Object> htblColNameValue, Object clusteringKey) throws DBAppException {
+    public  void deleteFromIndex (Vector<String> indicesPath, Hashtable<String,Object> htblColNameValue, Object clusteringKey, boolean deleteByClusteringKey) throws DBAppException {
         for (String path : indicesPath)
         {
             OctTree tree = (OctTree) Deserialize(path);
             Object o1 = htblColNameValue.get(tree.getIndexedCol1());
             Object o2 = htblColNameValue.get(tree.getIndexedCol2());
             Object o3 = htblColNameValue.get(tree.getIndexedCol3());
-            tree.delete(o1, o2, o3, clusteringKey,true);
+            tree.delete(o1, o2, o3, clusteringKey,deleteByClusteringKey);
             Serialize(path, tree);
         }
     }
@@ -339,6 +342,7 @@ public class DBApp {
             Serialize(path, tree);
         }
     }
+
     public Vector<String> searchIfIndexExists(String strTableName,Table table, Hashtable<String,Object> htblColNameValue) throws DBAppException {
 
         Vector<String> res = new Vector<>();
@@ -358,12 +362,12 @@ public class DBApp {
 
         return res;
     }
+
     public void updateTable(String strTableName, String strClusteringKeyValue, Hashtable<String,Object> htblColNameValue ) throws DBAppException {
 
         if (htblColNameValue.isEmpty()) return;
 
-        Object[] tableInfo = new Object[5];
-        tableInfo = readFromCSV(strTableName);
+        Object[] tableInfo = readFromCSV(strTableName);
 
         String clusteringKey = (String) tableInfo[0];
         String clusteringType = (String) tableInfo[1];
@@ -416,62 +420,43 @@ public class DBApp {
 
         String tablePath = "src/main/resources/data/Tables/"+strTableName+"/"+strTableName+".ser";
         Table table = (Table) Deserialize(tablePath);
+        Vector<Integer> pagesId = table.getPagesId();
 
-        if (table.getPagesId().size() > 0) {
+        if (pagesId.size() > 0) {
+            //search for the page to update in
+            int indexPage = binarySearchOnPages(strTableName, pagesId, clusteringObject);
+
+            if (indexPage == -1) throw new DBAppException("Clustering key value does not exits");
+
+            String updatePath = "src/main/resources/data/Tables/" + strTableName + "/Page" + indexPage + ".ser";
+            Page updatePage = (Page) Deserialize(updatePath);
+            Vector<Hashtable<String, Object>> records = updatePage.getRecords();
+            int recordIndex = searchForRecordToUpdate(records, clusteringKey, clusteringObject);
+
+            if (recordIndex == -1) throw new DBAppException("Clustering key value does not exits");
+
+            Hashtable<String, Object> oldRecord = records.get(recordIndex);
             Vector<String> indicesPath = searchIfIndexExists(strTableName, table, htblColNameValue);
-            if (indicesPath.size() != 0) {
-                int pageId = -1;
-                for (String path : indicesPath)
-                {
-                    OctTree tree = (OctTree) Deserialize(path);
-                    String indexedCol1 = tree.getIndexedCol1();
-                    String indexedCol2 = tree.getIndexedCol2();
-                    String indexedCol3 = tree.getIndexedCol3();
-                    Object o1 = htblColNameValue.get(indexedCol1);
-                    Object o2 = htblColNameValue.get(indexedCol2);
-                    Object o3 = htblColNameValue.get(indexedCol3);
-                    int tempId = tree.searchByClusteringKey(o1, o2, o3, clusteringObject);
-                    if (tempId > -1)
-                    {
-                    }
-                }
+            deleteFromIndex(indicesPath, oldRecord,oldRecord.get(clusteringKey), true);
 
+            for (String key : htblColNameValue.keySet()) {
+                records.get(recordIndex).replace(key, htblColNameValue.get(key));
             }
-            else {
-                int indexPage = 0;
-                boolean flag = false;
-                //search for the page to update in
-                for (Integer index : table.getPagesId()) {
-                    String path = "src/main/resources/data/Tables/" + strTableName + "/Page" + index + ".ser";
-                    Page p = (Page) Deserialize(path);
-                    Serialize(path, p);
-                    if (compare(clusteringObject, p.getMinClusteringKey()) >= 0 && compare(p.getMaxClusteringKey(), clusteringObject) >= 0) {
-                        indexPage = index;
-                        flag = true;
-                        break;
-                    }
-                }
-                if (!flag) throw new DBAppException("Clustering key value does not exits");
 
-                String updatePath = "src/main/resources/data/Tables/" + strTableName + "/Page" + indexPage + ".ser";
-                Page updatePage = (Page) Deserialize(updatePath);
-                Vector<Hashtable<String, Object>> records = updatePage.getRecords();
-                int recordIndex = searchForRecordToUpdate(records, clusteringKey, clusteringObject);
-                for (String key : htblColNameValue.keySet()) {
-                    records.get(recordIndex).replace(key, htblColNameValue.get(key));
-                }
-                updatePage.setRecords(records);
-                Serialize(updatePath, updatePage);
+            Hashtable<String,Object> updatedRecord = records.get(recordIndex);
+            updatePage.setRecords(records);
+            Serialize(updatePath, updatePage);
 
-            }
+            // delete old record from indices and update the new one
+            insertIntoIndex(indicesPath, updatedRecord, updatedRecord.get(clusteringKey), indexPage);
+
         }
         Serialize(tablePath,table);
     }
 
     public void deleteFromTable(String strTableName, Hashtable<String,Object> htblColNameValue) throws DBAppException {
 
-        Object[] tableInfo = new Object[5];
-        tableInfo = readFromCSV(strTableName);
+        Object[] tableInfo = readFromCSV(strTableName);
 
         String clusteringKey = (String) tableInfo[0];
         Hashtable<String,String> dataTypes = (Hashtable) tableInfo[2];
@@ -485,34 +470,75 @@ public class DBApp {
 
         String tablePath = "src/main/resources/data/Tables/"+strTableName+"/"+strTableName+".ser";
         Table table = (Table) Deserialize(tablePath);
+        Vector<Integer> pagesId = table.getPagesId();
+
+        Vector<String> indicesPath = searchIfIndexExists(strTableName, table, htblColNameValue);
+        boolean useIndex = indicesPath.size() != 0;
+        boolean clusteringKeyExists = htblColNameValue.containsKey(clusteringKey);
 
         if (table.getNoPages() > 0){
-            //linear search on the pages of the table
-            for (int i = 0; i < table.getPagesId().size(); i++)
-            {
-                int id = table.getPagesId().get(i);
-                String path = "src/main/resources/data/Tables/"+strTableName+"/Page"+id+".ser";
-                Page targetPage = (Page) Deserialize(path);
-                Vector<Hashtable<String,Object>> updatedRecords = deleteRecordsFromPage(targetPage.getRecords(), htblColNameValue);
-                //check if no records exist in the page after deletion
-                if (updatedRecords.size() == 0)
-                {
-                    File f = new File(path);
-                    f.delete();
-                    table.setNoPages(table.getNoPages() - 1);
-                    Vector<Integer> pagesID = table.getPagesId();
-                    pagesID.remove(new Integer(targetPage.getPageId()));
-                    table.setPagesId(pagesID);
-                    i--;
-                }
-                else
-                {
-                    int size = updatedRecords.size();
-                    targetPage.setRecords(updatedRecords);
-                    targetPage.setMinClusteringKey(updatedRecords.get(0).get(clusteringKey));
-                    targetPage.setMaxClusteringKey(updatedRecords.get(size - 1).get(clusteringKey));
-                    Serialize(path,targetPage);
 
+            if (useIndex)
+            {
+                TreeSet<Integer> targetId = new TreeSet<>();
+                for (String path : indicesPath)
+                {
+                    OctTree tree = (OctTree) Deserialize(path);
+                    String indexedCol1 = tree.getIndexedCol1(), indexedCol2 = tree.getIndexedCol2(), indexedCol3 = tree.getIndexedCol3();
+                    Object o1 = htblColNameValue.get(indexedCol1), o2 = htblColNameValue.get(indexedCol2), o3 = htblColNameValue.get(indexedCol3);
+                    targetId.addAll(tree.search(o1, o2,o3));
+                    Serialize(path, tree);
+                    tree = null;
+                }
+
+                for (Integer id : targetId)
+                {
+                    String pagePath = "src/main/resources/data/Tables/" + strTableName + "/Page" + id + ".ser";
+                    Page targetPage = (Page) Deserialize(pagePath);
+                    Vector<Hashtable<String, Object>> updatedRecords = deleteRecordsFromPage(targetPage.getRecords(), htblColNameValue);
+                    if (updatedRecords.size() == 0) {
+                        File f = new File(pagePath);
+                        f.delete();
+                        table.setNoPages(table.getNoPages() - 1);
+                        Vector<Integer> pagesID = table.getPagesId();
+                        pagesID.remove(new Integer(targetPage.getPageId()));
+                        table.setPagesId(pagesID);
+                    } else {
+                        int size = updatedRecords.size();
+                        targetPage.setRecords(updatedRecords);
+                        targetPage.setMinClusteringKey(updatedRecords.get(0).get(clusteringKey));
+                        targetPage.setMaxClusteringKey(updatedRecords.get(size - 1).get(clusteringKey));
+                        Serialize(pagePath, targetPage);
+                    }
+                }
+                System.out.println("doneeeeee");
+                deleteFromIndex(indicesPath, htblColNameValue, null, false);
+            }
+
+            else {
+                //linear search on the pages of the table
+                for (int i = 0; i < pagesId.size(); i++) {
+                    int id = table.getPagesId().get(i);
+                    String path = "src/main/resources/data/Tables/" + strTableName + "/Page" + id + ".ser";
+                    Page targetPage = (Page) Deserialize(path);
+                    Vector<Hashtable<String, Object>> updatedRecords = deleteRecordsFromPage(targetPage.getRecords(), htblColNameValue);
+                    //check if no records exist in the page after deletion
+                    if (updatedRecords.size() == 0) {
+                        File f = new File(path);
+                        f.delete();
+                        table.setNoPages(table.getNoPages() - 1);
+                        Vector<Integer> pagesID = table.getPagesId();
+                        pagesID.remove(new Integer(targetPage.getPageId()));
+                        table.setPagesId(pagesID);
+                        i--;
+                    } else {
+                        int size = updatedRecords.size();
+                        targetPage.setRecords(updatedRecords);
+                        targetPage.setMinClusteringKey(updatedRecords.get(0).get(clusteringKey));
+                        targetPage.setMaxClusteringKey(updatedRecords.get(size - 1).get(clusteringKey));
+                        Serialize(path, targetPage);
+
+                    }
                 }
             }
         }
@@ -579,7 +605,6 @@ public class DBApp {
         return records;
     }
 
-
     public int searchForPageToInsert (Vector<Integer> pagesID,String strTableName,Object clusteringKey) throws DBAppException {
         for (int i = 0; i < pagesID.size(); i++)
         {
@@ -634,9 +659,35 @@ public class DBApp {
                 lo = mid + 1;
             }
         }
-        return hi + 1 + records.size();
+        return -1;
     }
 
+    public int binarySearchOnPages (String strTableName,Vector<Integer> pagesId, Object clusteringObject) throws DBAppException {
+        int lo = 0;
+        int hi = pagesId.size() - 1;
+        while (lo <= hi)
+        {
+            int mid = (lo + hi) / 2;
+            int pageId = pagesId.get(mid);
+            String path = "src/main/resources/data/Tables/"+strTableName+"/Page"+pageId+".ser";
+            Page p = (Page) Deserialize(path);
+            Serialize(path, p);
+
+            if (compare(clusteringObject, p.getMinClusteringKey()) >= 0 && compare(clusteringObject, p.getMaxClusteringKey()) <= 0)
+            {
+                return mid;
+            }
+            else if (compare(clusteringObject, p.getMinClusteringKey()) <= 0)
+            {
+                hi = mid - 1;
+            }
+            else
+            {
+                lo = mid + 1;
+            }
+        }
+        return -1;
+    }
 
     public boolean isFull(Vector<Hashtable<String, Object>> records)
     {
@@ -645,10 +696,10 @@ public class DBApp {
 
     public int compare (Object o1,Object o2)
     {
-        if (o1 instanceof java.lang.Integer) return ((Integer)o1).compareTo((Integer)o2);
-        else if (o1 instanceof java.lang.Double) return ((Double)o1).compareTo((Double)o2);
-        else if (o1 instanceof java.lang.String) return ((String)o1).compareTo((String)o2);
-        else if (o1 instanceof DBAppNull) return ((DBAppNull)o1).compareTo((DBAppNull)o2);
+        if (o1 instanceof java.lang.Integer && o2 instanceof java.lang.Integer) return ((Integer)o1).compareTo((Integer)o2);
+        else if (o1 instanceof java.lang.Double && o2 instanceof java.lang.Double) return ((Double)o1).compareTo((Double)o2);
+        else if (o1 instanceof java.lang.String && o2 instanceof java.lang.String) return ((String)o1).compareTo((String)o2);
+        else if (o1 instanceof DBAppNull && o2 instanceof DBAppNull) return ((DBAppNull)o1).compareTo((DBAppNull)o2);
         else return ((Date)o1).compareTo((Date)o2);
 
     }
@@ -667,7 +718,7 @@ public class DBApp {
             e.printStackTrace();
         }
         MaximumRowsCountinTablePage = Integer.parseInt(prop.getProperty("MaximumRowsCountinTablePage"));
-        MaximumEntriesinOctreeNode=Integer.parseInt(prop.getProperty("MaximumEntriesinOctreeNode"));
+        MaximumEntriesinOctreeNode = Integer.parseInt(prop.getProperty("MaximumEntriesinOctreeNode"));
     }
 
     public Object[] readFromCSV (String strTableName) throws DBAppException {
@@ -856,10 +907,11 @@ public class DBApp {
             System.out.println(p.getMinClusteringKey());
         }
         System.out.println("Table contents");
-        System.out.println(t.getNoPages()+" "+t.getPagesId().toString() + "Indices: " + t.getIndicesId().toString());
+        System.out.println(t.getNoPages()+" "+t.getPagesId().toString() + " Indices: " + t.getIndicesId().toString());
         System.out.println("Index Content");
         for (Integer index : t.getIndicesId())
         {
+            System.out.println("------------------------------------Index"+index+"------------------------------------");
             String indexPath = "src/main/resources/data/Tables/"+tableName+"/Indices/index"+index+".ser";
             OctTree tree = (OctTree) Deserialize(indexPath);
             Serialize(indexPath,tree);
@@ -870,33 +922,45 @@ public class DBApp {
     public static void main(String[] args) throws IOException, DBAppException, ClassNotFoundException, ParseException {
         String strTableName = "students";
         DBApp dbApp = new DBApp();
-//        dbApp.init();
+//       dbApp.init();
 //		Hashtable<String, String> htblColNameType = new Hashtable<>();
 //		Hashtable<String, String> htblColNameMax = new Hashtable();
 //		Hashtable<String, String> htblColNameMin = new Hashtable();
 //		htblColNameType.put("id", "java.lang.Integer");
 //		htblColNameType.put("name", "java.lang.String");
 //		htblColNameType.put("gpa", "java.lang.Double");
-//		htblColNameMax.put("id", "100");
+//        htblColNameType.put("course", "java.lang.String");
+//        htblColNameType.put("age", "java.lang.Integer");
+//        htblColNameType.put("date", "java.util.Date");
+//		htblColNameMax.put("id", "50");
 //		htblColNameMax.put("name", "zzzzzzzzzzzzzzzzzzzzzzz");
 //		htblColNameMax.put("gpa", "4");
+//        htblColNameMax.put("course", "zzzzzzzzzzzzzzzzzzzzzzz");
+//        htblColNameMax.put("age", "50");
+//        htblColNameMax.put("date", "2023-12-02");
 //		htblColNameMin.put("id", "1");
 //		htblColNameMin.put("name", "aaaaaaaaaaaaaaaaaaaaaaa");
 //		htblColNameMin.put("gpa", "0.7");
+//        htblColNameMin.put("course", "aaaaaaaaaaaaaaaaaaaaaaa");
+//        htblColNameMin.put("age", "10");
+//        htblColNameMin.put("date","2002-1-02");
 //		dbApp.createTable( strTableName, "id", htblColNameType,htblColNameMin,htblColNameMax);
-//            String[] col = {"id","name","gpa"};
-//            dbApp.createIndex(strTableName,col);
-//          Hashtable htblColNameValue = new Hashtable();
-//          htblColNameValue.put("id", new Integer(3));
-//          htblColNameValue.put("name", new DBAppNull());
-//          htblColNameValue.put("gpa", new Double(1.6));
+//      String[] col = {"name","gpa","course"};
+//      dbApp.createIndex(strTableName,col);
+//      Hashtable htblColNameValue = new Hashtable();
+//      htblColNameValue.put("id", new Integer(3));
+//      htblColNameValue.put("name", "youssef");
+//      htblColNameValue.put("gpa", new Double(1.0));
+//      htblColNameValue.put("course", "math");
+//      htblColNameValue.put("age", 22);
+//      htblColNameValue.put("date", new DBAppNull());
 //        System.out.println("Before************************************************************************************");
 //        dbApp.printPages(strTableName);
 //		dbApp.deleteFromTable( strTableName , htblColNameValue );
 //		dbApp.insertIntoTable( strTableName , htblColNameValue );
-//		dbApp.updateTable(strTableName,"4",htblColNameValue);
-//		System.out.println("After**************************************************************************************");
-//		dbApp.printPages(strTableName);
+//		dbApp.updateTable(strTableName,"3",htblColNameValue);
+		System.out.println("After**************************************************************************************");
+		dbApp.printPages(strTableName);
 
     }
 

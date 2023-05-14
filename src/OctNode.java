@@ -2,6 +2,9 @@ import com.sun.source.tree.Tree;
 
 import java.awt.*;
 import java.io.Serializable;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.time.LocalDate;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.TreeSet;
@@ -245,7 +248,6 @@ public class OctNode implements Serializable{
             }
             else if (withinTheRange(point, minX, maxX, minY, maxY, minZ, maxZ)) {
                 children[i].delete(point, deleteByClusteringKey);
-                return;
             }
         }
 
@@ -323,11 +325,6 @@ public class OctNode implements Serializable{
         return false;
     }
 
-//    public void update (OctPoint point)
-//    {
-//        insert(point);
-//        delete(point);
-//    }
     public int getPageIdByClusteringKey (OctPoint point, Vector<OctPoint> storedData, Vector<OctPoint> duplicates,Object clusteringKey)
     {
         for (OctPoint target : storedData)
@@ -420,7 +417,7 @@ public class OctNode implements Serializable{
         for (int i = 0; i < storedData.size(); i++)
         {
             OctPoint target = storedData.get(i);
-            if (isEqual(point, target) && point.getClusteringKey().equals(target.getClusteringKey()))
+            if (isEqual(point, target) && compare(point.getClusteringKey(), target.getClusteringKey()) == 0)
             {
                 storedData.remove(i);
                 i--;
@@ -484,7 +481,7 @@ public class OctNode implements Serializable{
         }
         return -1;
     }
-    public Object getMedian (Object operand1, Object operand2)
+    public static Object getMedian (Object operand1, Object operand2)
     {
         if (operand1 instanceof java.lang.Integer)
         {
@@ -495,7 +492,7 @@ public class OctNode implements Serializable{
         }
         else if (operand1 instanceof java.util.Date)
         {
-            return (((Date) operand1).getTime() + ((Date) operand2).getTime()) / 2;
+            return new Date((((Date) operand1).getTime() + ((Date) operand2).getTime()) / 2);
         }
 
         String str1 = (String) operand1;
@@ -544,9 +541,9 @@ public class OctNode implements Serializable{
 
     public boolean withinTheRange (OctPoint Point,Object X1, Object X2, Object Y1, Object Y2, Object Z1, Object Z2)
     {
-        return (compare(Point.getX(), X1) >= 0 && compare(Point.getX(),X2) < 0)
-                && (compare(Point.getY(), Y1) >= 0 && compare(Point.getY(),Y2) < 0)
-                && (compare(Point.getZ(), Z1) >= 0 && compare(Point.getZ(),Z2) < 0);
+        return (compare(Point.getX(), X1) >= 0 && compare(Point.getX(),X2) <= 0)
+                && (compare(Point.getY(), Y1) >= 0 && compare(Point.getY(),Y2) <= 0)
+                && (compare(Point.getZ(), Z1) >= 0 && compare(Point.getZ(),Z2) <= 0);
     }
 
     public int compare (Object o1,Object o2)
@@ -576,7 +573,6 @@ public class OctNode implements Serializable{
         return "Parent maxX: "+this.x1+" minX: "+this.x2+" maxY: "+this.y1+" minY: "+this.y2+" maxZ: "+this.z1+" minZ: "+this.z2+" children: "+this.storedData.toString();
     }
 
-    public static void main(String[] args) {
-
+    public static void main(String[] args) throws ParseException {
     }
 }

@@ -81,21 +81,21 @@ public class OctTree implements Serializable {
     }
 
     public static void main(String[] args) {
-//        OctNode root = new OctNode(1,100,1.0,100.0,"aaaaa","zzzzz", true, null);
-//        OctTree tree = new OctTree(root,"","","");
-//        tree.insert(2,new Double(2.0),"bbbbd",1,"reference");
-//        tree.insert(12,new Double(80.0),"ccccc",2,"reference");
-//        tree.insert(49,new Double(40.0),"ccccd",3,"reference");
-//        tree.insert(23,new DBAppNull(),"mzzzz",4,"reference");
-//        tree.insert(42,new Double(16.5),new DBAppNull(),5,"reference");
-//        tree.insert(30,new Double(23.0),"mzzzz",6,"reference");
-//        tree.insert(30,new Double(23.0),"mzzzz",7,"reference1");
-//        tree.insert(30,new Double(23.0),"mzzzz",8,"reference2");
-//        tree.insert(30,new Double(23.0),"mzzzz",9,"reference3");
-//        tree.insert(40,new Double(75.5),"eeeed",10,"reference");
-//        tree.insert(31,new Double(10.0),"bbbbs",11,"reference");
-//        tree.insert(45,new Double(25.0),"bbscb",12,"reference");
-//        tree.insert(55,new Double(56.0),"cccc",13,"reference");
+        OctNode root = new OctNode(1,100,1.0,100.0,"aaaaa","zzzzz", true, null);
+        OctTree tree = new OctTree(root,"","","");
+        tree.insert(2,new Double(2.0),"bbbbd",1,0);
+        tree.insert(12,new Double(80.0),"ccccc",2,1);
+        tree.insert(49,new Double(40.0),"ccccd",3,2);
+        tree.insert(23,new DBAppNull(),"mzzzz",4,3);
+        tree.insert(42,new Double(16.5),new DBAppNull(),5,4);
+        tree.insert(30,new Double(23.0),"mzzzz",6,5);
+        tree.insert(30,new Double(23.0),"mzzzz",7,6);
+        tree.insert(30,new Double(23.0),"mzzzz",8,7);
+        tree.insert(30,new Double(23.0),"mzzzz",9,8);
+        tree.insert(40,new Double(75.5),"eeeed",10,0);
+        tree.insert(31,new Double(10.0),"bbbbs",11,0);
+        tree.insert(45,new Double(25.0),"bbscb",12,0);
+        tree.insert(55,new Double(56.0),"cccc",13,1);
 //        tree.insert(23,new DBAppNull(),"mzzzz",14,"reference");
 //        tree.insert(42,new Double(16.5),new DBAppNull(),15,"reference");
 //        tree.insert(1,new Double(5.0),"aaaaa",16,"reference");
@@ -107,12 +107,13 @@ public class OctTree implements Serializable {
 //        tree.insert(63,new DBAppNull(),"meziz",22,"reference1");
 //        tree.insert(new DBAppNull(),new Double(93.5),"eyeee",23,"reference2");
 //        tree.insert(new DBAppNull(),new Double(73.0),"seiff",24,"reference3");
-//        System.out.println("Before---------------------------------------");
-//        tree.printTree();
-//        tree.delete(30,new Double(23.0),"mzzzz",7,"reference2",true);
+        System.out.println("Before---------------------------------------");
+        tree.printTree();
+        tree.delete(30,new Double(23.0),"mzzzz",7,true);
 //        tree.delete(40,new Double(75.5),"eeeed",5,"reference",false);
 //        tree.delete(31,new Double(10.0),"bbbbs",5,"reference",false);
-//        tree.printTree();
+        System.out.println("Before---------------------------------------");
+        tree.printTree();
 //        System.out.println(tree.search(new DBAppNull(),new Double(93.5),"eyeee"));
 //         tree.insert(55,new Double(56.0),"cccc",5,"reference");
 //        tree.insert(31,new Double(63.0),"mzze",5,"reference");
