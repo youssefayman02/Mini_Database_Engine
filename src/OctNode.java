@@ -1,14 +1,9 @@
 import com.sun.source.tree.Tree;
 
 import java.awt.*;
-import java.io.Serializable;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.time.LocalDate;
-import java.util.Date;
-import java.util.HashSet;
-import java.util.TreeSet;
-import java.util.Vector;
+import java.io.*;
+import java.text.*;
+import java.util.*;
 
 public class OctNode implements Serializable{
     //min x
@@ -343,6 +338,7 @@ public class OctNode implements Serializable{
         }
         return -1;
     }
+
     public TreeSet<Integer> getPagesId(OctPoint point, Vector<OctPoint> storedData, Vector<OctPoint> duplicates)
     {
         TreeSet<Integer> res = new TreeSet<>();
@@ -363,6 +359,7 @@ public class OctNode implements Serializable{
         }
         return res;
     }
+
     public boolean checkAllChildrenAreLeaves (OctNode[] children)
     {
         for (OctNode node : children)
@@ -371,6 +368,7 @@ public class OctNode implements Serializable{
         }
         return true;
     }
+
     public Object[] moveDataFromChildren (OctNode[] children)
     {
         Vector<OctPoint> movedData = new Vector<>();
@@ -385,6 +383,7 @@ public class OctNode implements Serializable{
         res[1] = movedDuplicates;
         return res;
     }
+
     public boolean checkStoredPointsBelowMax(OctNode[] children)
     {
         int storedPoints = 0;
@@ -425,6 +424,7 @@ public class OctNode implements Serializable{
         }
         return storedData;
     }
+
     public boolean containsPointAndPageId(OctPoint point, Vector<OctPoint> storedData)
     {
         for (OctPoint target: storedData)
@@ -436,6 +436,7 @@ public class OctNode implements Serializable{
         }
         return false;
     }
+
     public boolean containsPoint(OctPoint point, Vector<OctPoint> storedData)
     {
         for (OctPoint target: storedData)
@@ -447,6 +448,7 @@ public class OctNode implements Serializable{
         }
         return false;
     }
+
     public void printTree()
     {
         if (this.isLeaf)
@@ -481,6 +483,7 @@ public class OctNode implements Serializable{
         }
         return -1;
     }
+
     public static Object getMedian (Object operand1, Object operand2)
     {
         if (operand1 instanceof java.lang.Integer)
@@ -573,6 +576,4 @@ public class OctNode implements Serializable{
         return "Parent maxX: "+this.x1+" minX: "+this.x2+" maxY: "+this.y1+" minY: "+this.y2+" maxZ: "+this.z1+" minZ: "+this.z2+" children: "+this.storedData.toString();
     }
 
-    public static void main(String[] args) throws ParseException {
-    }
 }

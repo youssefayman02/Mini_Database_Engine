@@ -7,6 +7,7 @@ public class OctPoint implements Serializable {
     private Object z;
     private Object clusteringKey;
     private int pageId;
+
     public OctPoint(Object x, Object y, Object z,Object clusteringKey, int pageId)
     {
         this.x = x;

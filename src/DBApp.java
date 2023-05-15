@@ -4,13 +4,8 @@ import java.text.*;
 import java.util.*;
 
 public class DBApp {
-    static int MaximumRowsCountinTablePage = 1;
-    static int MaximumEntriesinOctreeNode = 2;
-
-    public DBApp()
-    {
-
-    }
+    static int MaximumRowsCountinTablePage;
+    static int MaximumEntriesinOctreeNode;
 
     public void init()
     {
@@ -50,6 +45,7 @@ public class DBApp {
 
         File tableDirectory = new File("src/main/resources/data/Tables/"+strTableName);
         File indexDirectory = new File("src/main/resources/data/Tables/"+strTableName+"/Indices");
+
         if (!tableDirectory.exists()) tableDirectory.mkdir();
         else throw new DBAppException("Table already exists");
 
@@ -108,6 +104,7 @@ public class DBApp {
         OctNode root = new OctNode(minX, maxX, minY, maxY, minZ, maxZ, true, null);
         OctTree tree = new OctTree(root, indexedCol1, indexedCol2, indexedCol3);
         int indexId = indicesId.size();
+
         String indexPath = "src/main/resources/data/Tables/"+strTableName+"/Indices/index"+indexId+".ser";
         indicesId.add(indexId);
         table.setIndicesId(indicesId);
@@ -123,6 +120,7 @@ public class DBApp {
     }
 
     public void validateColumnNames (String[] strarrColName) throws DBAppException {
+
         if (strarrColName[0].equals(strarrColName[1]) || strarrColName[0].equals(strarrColName[2]) || strarrColName[1].equals(strarrColName[2]))
         {
             throw new DBAppException("Can not build index on two same columns");
@@ -169,7 +167,7 @@ public class DBApp {
     }
 
     public void populateRecordsInIndex(String strTableName, Vector<Integer> pagesId, OctTree tree, String primaryKey) throws DBAppException {
-        //readConfig();
+        readConfig();
         for (Integer id : pagesId)
         {
             String path = "src/main/resources/data/Tables/"+strTableName+"/Page"+id+".ser";
@@ -177,12 +175,8 @@ public class DBApp {
             Vector<Hashtable<String, Object>> records = target.getRecords();
             for (Hashtable<String,Object> record : records)
             {
-                String indexedCol1 = tree.getIndexedCol1();
-                String indexedCol2 = tree.getIndexedCol2();
-                String indexedCol3 = tree.getIndexedCol3();
-                Object o1 = record.get(indexedCol1);
-                Object o2 = record.get(indexedCol2);
-                Object o3 = record.get(indexedCol3);
+                String indexedCol1 = tree.getIndexedCol1(), indexedCol2 = tree.getIndexedCol2(), indexedCol3 = tree.getIndexedCol3();
+                Object o1 = record.get(indexedCol1), o2 = record.get(indexedCol2), o3 = record.get(indexedCol3);
                 Object clusteringKey = record.get(primaryKey);
                 tree.insert(o1,o2,o3,clusteringKey,id);
             }
@@ -238,7 +232,7 @@ public class DBApp {
         Vector<Integer> pagesId = table.getPagesId();
 
         //to know whether the page I will insert record in it is full or not
-        //readConfig();
+        readConfig();
         Vector<String> indiciesPath = searchIfIndexExists(strTableName,table,htblColNameValue);
 
         //there is no pages yet in the table so we need to create our first page
@@ -467,11 +461,10 @@ public class DBApp {
         checkColCompatibility(dataTypes, htblColNameValue);
         checkRange(dataTypes, minValues, maxValues, htblColNameValue);
 
-
         String tablePath = "src/main/resources/data/Tables/"+strTableName+"/"+strTableName+".ser";
         Table table = (Table) Deserialize(tablePath);
         Vector<Integer> pagesId = table.getPagesId();
-
+        Vector<String> availableIndices = getAvailableIndices(strTableName, table);
         Vector<String> indicesPath = searchIfIndexExists(strTableName, table, htblColNameValue);
         boolean useIndex = indicesPath.size() != 0;
         boolean clusteringKeyExists = htblColNameValue.containsKey(clusteringKey);
@@ -493,16 +486,21 @@ public class DBApp {
 
                 for (Integer id : targetId)
                 {
+                    if (!pagesId.contains(id)) continue;
+
                     String pagePath = "src/main/resources/data/Tables/" + strTableName + "/Page" + id + ".ser";
                     Page targetPage = (Page) Deserialize(pagePath);
-                    Vector<Hashtable<String, Object>> updatedRecords = deleteRecordsFromPage(targetPage.getRecords(), htblColNameValue);
+                    Vector<Hashtable<String, Object>> updatedRecords = deleteRecordsFromPage(targetPage.getRecords(), htblColNameValue, availableIndices);
+
                     if (updatedRecords.size() == 0) {
+
                         File f = new File(pagePath);
                         f.delete();
                         table.setNoPages(table.getNoPages() - 1);
                         Vector<Integer> pagesID = table.getPagesId();
                         pagesID.remove(new Integer(targetPage.getPageId()));
                         table.setPagesId(pagesID);
+
                     } else {
                         int size = updatedRecords.size();
                         targetPage.setRecords(updatedRecords);
@@ -511,19 +509,32 @@ public class DBApp {
                         Serialize(pagePath, targetPage);
                     }
                 }
-                System.out.println("doneeeeee");
-                deleteFromIndex(indicesPath, htblColNameValue, null, false);
+
             }
 
             else {
                 //linear search on the pages of the table
                 for (int i = 0; i < pagesId.size(); i++) {
+
                     int id = table.getPagesId().get(i);
                     String path = "src/main/resources/data/Tables/" + strTableName + "/Page" + id + ".ser";
                     Page targetPage = (Page) Deserialize(path);
-                    Vector<Hashtable<String, Object>> updatedRecords = deleteRecordsFromPage(targetPage.getRecords(), htblColNameValue);
+                    Vector<Hashtable<String, Object>> currRecords = targetPage.getRecords();
+
+                    Vector<Hashtable<String, Object>> updatedRecords = new Vector<>();
+                    if (clusteringKeyExists)
+                    {
+                        System.out.println("entered");
+                        updatedRecords = deleteRecordsByBinarySearch(currRecords, htblColNameValue, clusteringKey,htblColNameValue.get(clusteringKey), availableIndices);
+                    }
+                    else
+                    {
+                        updatedRecords =  deleteRecordsFromPage(targetPage.getRecords(), htblColNameValue, availableIndices);
+                    }
+
                     //check if no records exist in the page after deletion
                     if (updatedRecords.size() == 0) {
+
                         File f = new File(path);
                         f.delete();
                         table.setNoPages(table.getNoPages() - 1);
@@ -531,7 +542,9 @@ public class DBApp {
                         pagesID.remove(new Integer(targetPage.getPageId()));
                         table.setPagesId(pagesID);
                         i--;
+
                     } else {
+
                         int size = updatedRecords.size();
                         targetPage.setRecords(updatedRecords);
                         targetPage.setMinClusteringKey(updatedRecords.get(0).get(clusteringKey));
@@ -546,40 +559,59 @@ public class DBApp {
         Serialize(tablePath,table);
     }
 
-//    public Iterator selectFromTable(SQLTerm[] arrSQLTerms, String[] strarrOperators) throws DBAppException
-//    {
-//        if (arrSQLTerms.length - strarrOperators.length != 1) throw new DBAppException("Invalid arrSQLTerms and strarrOperators");
-//
-//        //to check on the given operators AND,OR,XOR
-//        validateStrarrOperators(strarrOperators);
-//        validateArrSQLTerms(arrSQLTerms);
-//        return null;
-//    }
-
-//    public void validateArrSQLTerms(SQLTerm[] arrSQLTerms) throws DBAppException {
-//        String tableName = arrSQLTerms[0].get_strTableName();
-//
-//        for (int i = 1; i < arrSQLTerms.length; i++)
-//        {
-//            if (!(arrSQLTerms[1].get_strTableName()).equals(tableName))
-//            {
-//                throw new DBAppException("Different table names are passed ");
-//            }
-//        }
-//    }
-//
-//    public void validateStrarrOperators(String[] strarrOperators) throws DBAppException {
-//        for (String str : strarrOperators)
-//        {
-//            if (!str.equals("OR") && !str.equals("AND") && !str.equals("XOR"))
-//            {
-//                throw new DBAppException("strarrOperators contains invalid operators");
-//            }
-//        }
-//    }
-
-    public Vector<Hashtable<String,Object>> deleteRecordsFromPage (Vector<Hashtable<String,Object>> records,Hashtable<String,Object> htblColNameValue)
+    public Iterator selectFromTable(SQLTerm[] arrSQLTerms, String[] strarrOperators) throws DBAppException
     {
+        if (arrSQLTerms.length - strarrOperators.length != 1) throw new DBAppException("Invalid arrSQLTerms and strarrOperators");
+
+        //to check on the given operators AND,OR,XOR
+        validateStrarrOperators(strarrOperators);
+        validateArrSQLTerms(arrSQLTerms);
+
+        //insert logic of select
+        return null;
+    }
+
+    public void validateArrSQLTerms(SQLTerm[] arrSQLTerms) throws DBAppException {
+        String tableName = arrSQLTerms[0]._strTableName;
+
+        for (int i = 1; i < arrSQLTerms.length; i++)
+        {
+            if (!(arrSQLTerms[1]._strTableName).equals(tableName))
+            {
+                throw new DBAppException("Different table names are passed ");
+            }
+        }
+
+        Hashtable<String, Object> record = new Hashtable<>();
+        for (int i = 0; i < arrSQLTerms.length; i++)
+        {
+            record.put(arrSQLTerms[i]._strColumnName, arrSQLTerms[i]._objValue);
+        }
+
+        Object[] tableInfo = readFromCSV(tableName);
+
+        Hashtable<String,String> dataTypes = (Hashtable) tableInfo[2];
+        Hashtable<String,Object> minValues= (Hashtable) tableInfo[3];
+        Hashtable<String,Object> maxValues = (Hashtable) tableInfo[4];
+
+        checkColDataTypes(dataTypes, record);
+        checkColCompatibility(dataTypes, record);
+        checkRange(dataTypes, minValues, maxValues, record);
+
+    }
+
+    public void validateStrarrOperators(String[] strarrOperators) throws DBAppException {
+        for (String str : strarrOperators)
+        {
+            if (!str.equals("OR") && !str.equals("AND") && !str.equals("XOR"))
+            {
+                throw new DBAppException("strarrOperators contains invalid operators");
+            }
+        }
+    }
+
+    public Vector<Hashtable<String, Object>> deleteRecordsFromPage (Vector<Hashtable<String,Object>> records, Hashtable<String,Object> htblColNameValue, Vector<String> availableIndices) throws DBAppException {
+
         for (int i = 0; i < records.size(); i++)
         {
             Hashtable<String,Object> targetRecord = records.get(i);
@@ -596,8 +628,11 @@ public class DBApp {
 
             }
             if (delete){
+
                 records.remove(i);
                 i--;
+                //to delete record from the existing indices
+                deleteFromIndex(availableIndices, targetRecord, null, false);
             }
 
         }
@@ -605,13 +640,77 @@ public class DBApp {
         return records;
     }
 
+    public Vector<Hashtable<String, Object>> deleteRecordsByBinarySearch(Vector<Hashtable<String,Object>> records, Hashtable<String, Object> htblColNameValue, String clusteringkey, Object clusteringObject, Vector<String> availableIndices) throws DBAppException {
+
+        int lo = 0;
+        int hi = records.size() - 1;
+
+        while (lo <= hi) {
+
+            int mid = (lo + hi) / 2;
+            Hashtable<String, Object> targetRecord = records.get(mid);
+
+            if (compare(clusteringObject,targetRecord.get(clusteringkey)) == 0)
+            {
+                boolean delete = true;
+                for (String key : htblColNameValue.keySet())
+                {
+                    if ( ((htblColNameValue.get(key) instanceof DBAppNull) && !(targetRecord.get(key) instanceof DBAppNull))
+                            || (!(htblColNameValue.get(key) instanceof DBAppNull) && (targetRecord.get(key) instanceof DBAppNull))
+                            || compare(htblColNameValue.get(key),targetRecord.get(key)) != 0)
+                    {
+                        delete = false;
+                        break;
+                    }
+
+                }
+
+                if (delete){
+
+                    records.remove(mid);
+                    //to delete record from the existing indices
+                    deleteFromIndex(availableIndices, targetRecord, clusteringObject, true);
+                }
+
+                return records;
+            }
+            else if (compare(clusteringObject,records.get(mid).get(clusteringkey)) < 0)
+            {
+                hi = mid - 1;
+            }
+            else
+            {
+                lo = mid + 1;
+            }
+        }
+
+        return records;
+    }
+
+    public Vector<String> getAvailableIndices (String strTableName,Table table)
+    {
+        Vector<String> res = new Vector<>();
+        Vector<Integer> indicesId = table.getIndicesId();
+
+        for (Integer id : indicesId)
+        {
+            String path = "src/main/resources/data/Tables/"+strTableName+"/Indices/index"+id+".ser";
+            res.add(path);
+        }
+
+        return res;
+
+    }
+
     public int searchForPageToInsert (Vector<Integer> pagesID,String strTableName,Object clusteringKey) throws DBAppException {
+
         for (int i = 0; i < pagesID.size(); i++)
         {
             int index = pagesID.get(i);
             String path = "src/main/resources/data/Tables/"+strTableName+"/Page"+index+".ser";
             Page p = (Page) Deserialize(path);
             Serialize(path,p);
+
             if (compare(clusteringKey,p.getMinClusteringKey()) >= 0 && compare(p.getMaxClusteringKey(),clusteringKey) >= 0) return index;
             else if (compare(p.getMinClusteringKey(),clusteringKey) >= 0)
             {
@@ -631,8 +730,10 @@ public class DBApp {
     }
 
     public int searchForRecord(Vector<Hashtable<String, Object>> records,Object clusteringKey,String primaryKey) throws DBAppException {
+
         int lo = 0;
         int hi = records.size() - 1;
+
         while (lo <= hi) {
             int mid = (lo + hi) / 2;
             if (compare(clusteringKey,records.get(mid).get(primaryKey)) == 0) {
@@ -647,8 +748,10 @@ public class DBApp {
     }
 
     public int searchForRecordToUpdate(Vector<Hashtable<String, Object>> records, String clusteringKey,Object clusteringObject) {
+
         int lo = 0;
         int hi = records.size() - 1;
+
         while (lo <= hi) {
             int mid = (lo + hi) / 2;
             if (compare(clusteringObject, records.get(mid).get(clusteringKey)) == 0) {
@@ -663,6 +766,7 @@ public class DBApp {
     }
 
     public int binarySearchOnPages (String strTableName,Vector<Integer> pagesId, Object clusteringObject) throws DBAppException {
+
         int lo = 0;
         int hi = pagesId.size() - 1;
         while (lo <= hi)
@@ -918,55 +1022,5 @@ public class DBApp {
             tree.printTree();
         }
     }
-
-    public static void main(String[] args) throws IOException, DBAppException, ClassNotFoundException, ParseException {
-        String strTableName = "students";
-        DBApp dbApp = new DBApp();
-//       dbApp.init();
-//		Hashtable<String, String> htblColNameType = new Hashtable<>();
-//		Hashtable<String, String> htblColNameMax = new Hashtable();
-//		Hashtable<String, String> htblColNameMin = new Hashtable();
-//		htblColNameType.put("id", "java.lang.Integer");
-//		htblColNameType.put("name", "java.lang.String");
-//		htblColNameType.put("gpa", "java.lang.Double");
-//        htblColNameType.put("course", "java.lang.String");
-//        htblColNameType.put("age", "java.lang.Integer");
-//        htblColNameType.put("date", "java.util.Date");
-//		htblColNameMax.put("id", "50");
-//		htblColNameMax.put("name", "zzzzzzzzzzzzzzzzzzzzzzz");
-//		htblColNameMax.put("gpa", "4");
-//        htblColNameMax.put("course", "zzzzzzzzzzzzzzzzzzzzzzz");
-//        htblColNameMax.put("age", "50");
-//        htblColNameMax.put("date", "2023-12-02");
-//		htblColNameMin.put("id", "1");
-//		htblColNameMin.put("name", "aaaaaaaaaaaaaaaaaaaaaaa");
-//		htblColNameMin.put("gpa", "0.7");
-//        htblColNameMin.put("course", "aaaaaaaaaaaaaaaaaaaaaaa");
-//        htblColNameMin.put("age", "10");
-//        htblColNameMin.put("date","2002-1-02");
-//		dbApp.createTable( strTableName, "id", htblColNameType,htblColNameMin,htblColNameMax);
-//      String[] col = {"name","gpa","course"};
-//      dbApp.createIndex(strTableName,col);
-//      Hashtable htblColNameValue = new Hashtable();
-//      htblColNameValue.put("id", new Integer(3));
-//      htblColNameValue.put("name", "youssef");
-//      htblColNameValue.put("gpa", new Double(1.0));
-//      htblColNameValue.put("course", "math");
-//      htblColNameValue.put("age", 22);
-//      htblColNameValue.put("date", new DBAppNull());
-//        System.out.println("Before************************************************************************************");
-//        dbApp.printPages(strTableName);
-//		dbApp.deleteFromTable( strTableName , htblColNameValue );
-//		dbApp.insertIntoTable( strTableName , htblColNameValue );
-//		dbApp.updateTable(strTableName,"3",htblColNameValue);
-		System.out.println("After**************************************************************************************");
-		dbApp.printPages(strTableName);
-
-    }
-
-
-
-
-
 
 }
